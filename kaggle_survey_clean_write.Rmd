@@ -298,7 +298,3 @@ plot_df <- function(df){
   }
 }
 ```
-
-```{r}
-plot_df(df_prime_tool)
-```
