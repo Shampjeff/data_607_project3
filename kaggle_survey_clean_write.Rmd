@@ -169,6 +169,8 @@ df_cloud_ml<- rename.columns(df_cloud_ml)
 # relational DB
 df_db<- df %>% select(Q34_Part_1:Q34_Part_12)
 df_db<- rename.columns(df_db)
+
+df_list <- list(df_prime_tool, df_ml_xp, df_lang_rec, df_media, df_online_ed, df_ide, df_lang, df_viz, df_ml_algo, df_ml_tool, df_cv, df_nlp, df_cloud, df_cloud_prod, df_big_data, df_cloud_ml, df_db)
 ```
 
 ## Check for outliers
@@ -291,12 +293,18 @@ We have lots of information broken down into many sub dataframes. I will attempt
 ### Function to plot the small dataframes
 plot_df <- function(df){
   mega_df <- inner_join(df_basic, df, by = 'id')
-  colNames <- names(df)
+  colNames <- names(df %>% select(-id))
   for (i in colNames){
-    myplot <- mega_df %>% ggplot(aes_string(x = i, y = "compensation_USD", fill = i)) + geom_boxplot()
-    print(myplot) + theme(axis.text.x = element_text(angle = 90))
+    myplot <- mega_df %>% ggplot(aes_string(x = i, y = "compensation_USD", fill = i)) + geom_boxplot() + theme(axis.text.x = element_text(angle = 90))
+    print(myplot) 
   }
 }
 ```
 
+```{r}
+for (i in df_list){
+  plot_df(data.frame(i))
+}
+
+```
 ### Breakdown of Results
