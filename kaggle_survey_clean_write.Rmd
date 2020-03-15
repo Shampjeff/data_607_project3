@@ -29,6 +29,7 @@ Below is the bulk data file. We don't know to drag around all the data all the t
 file<-"/Users/jeffshamp/Documents/GitHub/cuny_msds/DATA_607/data/multiple_choice_responses.csv"
 df<-read.csv(file = file,sep = ",", stringsAsFactors = F, na.strings =T)%>% 
   mutate_if(is.character, list(~na_if(.,""))) 
+df
 ```
 
 The first table we want is the basic information; age, country, education level, company size, salary, experience level, etc. 
@@ -173,7 +174,7 @@ df_basic
 ```
 
 ```{r}
-
+df_ide
 ```
 
 
