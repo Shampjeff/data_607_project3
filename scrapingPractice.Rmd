@@ -1,0 +1,481 @@
+---
+title: "LQ Scraping"
+author: "Layla Quinones"
+date: "3/14/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE, warning = FALSE, hide = TRUE}
+library(rvest)
+library(stringi)
+library(tidyverse)
+library(RCurl)
+library(rebus)     
+library(lubridate)
+library(xml2)
+library(kableExtra)
+```
+
+> Note: Scroll all the way down to the DATA section to see all the tables this code renders. It's long.
+
+# Web Scraping for Key Words
+APPROACH: Web scrape to create various websites and save a list of key words that pertain to Data Science skills.
+```{r}
+# Website with html table in link
+url <- "https://en.wikipedia.org/wiki/Data_science"
+
+#Parse
+url <- read_html(url)
+
+#Reads selecters from css
+htmlData <- html_nodes(url, ".vertical-navbox") %>%
+  html_text()
+
+#RegEx
+cleanData <- unlist(str_extract_all(htmlData, "[A-Za-z]+.*\\n+"))
+wordList <- unlist(str_remove_all(cleanData, "\\n"))
+wordList <- unlist(str_remove_all(wordList, "\\..*"))
+wordList <- unlist(str_remove_all(wordList, "and"))
+wordList <- wordList[1:87]
+```
+
+```{r}
+#KD Nuggets Data
+urlTwo<- "https://www.kdnuggets.com/2019/04/top-data-science-machine-learning-methods-2018-2019.html"
+
+#Parse
+urlTwo <- read_html(urlTwo)
+
+#Reads selecters from css
+htmlDataTwoA <- html_nodes(urlTwo, ".three_ul") %>%
+  html_text()
+
+#RegEx
+cleanDataTwo <- unlist(str_extract_all(htmlDataTwoA, "[A-Za-z]+.*\\n+"))
+cleanDataTwo <- unlist(str_remove_all(cleanDataTwo, "\\d+.*"))
+cleanDataTwo <- unlist(strsplit(cleanDataTwo, ","))
+cleanDataTwo  <- unlist(str_split(cleanDataTwo , "\\("))
+cleanDataTwo  <- unlist(str_remove_all(cleanDataTwo, "/"))
+cleanDataTwo  <- unlist(str_remove_all(cleanDataTwo, "\\)"))
+cleanDataTwo  <- unlist(str_remove_all(cleanDataTwo, "-*"))
+cleanDataTwo  <- unlist(str_remove_all(cleanDataTwo, "\\n"))
+cleanDataTwo  <- unlist(str_remove_all(cleanDataTwo, "\\n"))
+cleanDataTwo <- cleanDataTwo[1:19]
+
+#Add to our initial word list
+wordList <- c(wordList, cleanDataTwo)
+
+#Part 2 (seperate selector)
+htmlDataTwoB <- html_nodes(urlTwo, "ul") %>%
+  html_text()
+
+#RegEx
+htmlDataTwoB <- c(htmlDataTwoB[2], htmlDataTwoB[3])
+htmlDataTwoB <- unlist(str_extract_all(htmlDataTwoB, ".*\\n"))
+htmlDataTwoB <- unlist(str_remove_all(htmlDataTwoB, "\\n+"))
+htmlDataTwoB <- unlist(str_extract_all(htmlDataTwoB, ".*,+?"))
+htmlDataTwoB <- unlist(str_remove_all(htmlDataTwoB, ",.*"))
+htmlDataTwoB <- unlist(str_remove_all(htmlDataTwoB, "\\sand\\s"))
+htmlDataTwoB <- unlist(str_remove_all(htmlDataTwoB, "&"))
+htmlDataTwoB <- unlist(str_remove_all(htmlDataTwoB, "-.*"))
+htmlDataTwoB <- unlist(str_split(htmlDataTwoB, "\\("))
+htmlDataTwoB <- unlist(str_remove_all(htmlDataTwoB, "\\)"))
+htmlDataTwoB <- unlist(str_remove_all(htmlDataTwoB, "/"))
+
+#Add to our initial word list
+wordList <- c(wordList, htmlDataTwoB)
+```
+
+```{r}
+# Utica MS
+urlThree <- "https://landing.online.utica.edu/msds-af?utm_source=banshee&utm_campaign=discoverdatascience&utm_content=mds&utm_term=datascience&viq_channel=af"
+
+#Parse
+urlThree <- read_html(urlThree)
+
+#Reads the table in the html page (within "class selector")
+uticaData <- html_nodes(urlThree, "ul") %>%
+  html_text() 
+
+uticaData <- unlist(str_extract_all(uticaData, ".*\\n"))
+uticaData <- unlist(str_remove_all(uticaData, "\\n*\\t*"))
+uticaData <- unlist(str_remove_all(uticaData, ":+.*"))
+
+#Add to our initial word list
+wordList <- c(wordList, uticaData)
+```
+
+```{r}
+#  Saint Marys MS
+urlFour <- "https://landing.onlineprograms.smumn.edu/msbida-af?utm_source=banshee&utm_campaign=discoverdatascience&utm_content=mds&utm_term=datascience&viq_channel=af"
+
+#Parse
+urlFour <- read_html(urlFour)
+
+#Reads the table in the html page (within "class selector")
+maryData <- html_nodes(urlFour, "li") %>%
+  html_text() 
+
+
+#Add to our initial word list
+wordList <- c(wordList, maryData)
+```
+
+
+```{r}
+#  US Bureau of Labor Stats
+urlFive <- "https://www.bls.gov/ooh/computer-and-information-technology/computer-and-information-research-scientists.htm#tab-4"
+
+#Parse
+urlFive <- read_html(urlFive)
+
+#Reads the table in the html page (within "class selector")
+laborData <- html_nodes(urlFive, "strong") %>%
+  html_text() %>%
+  .[4:13]
+
+laborData <- unlist(str_remove_all(laborData, "\\."))
+#Add to our initial word list
+wordList <- c(wordList, laborData)
+```
+
+```{r}
+#  US Bureau of Labor Stats
+urlSix <- "https://www.bls.gov/ooh/math/operations-research-analysts.htm#tab-4"
+
+#Parse
+urlSix <- read_html(urlSix)
+
+#Reads the table in the html page (within "class selector")
+laborDataTwo <- html_nodes(urlSix, "strong") %>%
+  html_text() %>%
+  .[4:13]
+
+laborDataTwo <- unlist(str_remove_all(laborDataTwo, "\\."))
+#Add to our initial word list
+wordList <- c(wordList, laborDataTwo)
+```
+
+```{r}
+# Edureka Article
+urlSeven <- "https://www.edureka.co/blog/data-scientist-skills/"
+
+#Parse
+urlSeven <- read_html(urlSeven)
+
+#Reads the table in the html page (within "class selector")
+eurekaData <- html_nodes(urlSeven, "ul li span") %>%
+  html_text() %>%
+  .[7:17]
+eurekaData <- unlist(str_remove_all(eurekaData, "\\sand\\s"))
+eurekaData <- unlist(str_remove_all(eurekaData, "At least one programming language – "))
+eurekaData <- unlist(strsplit(eurekaData, "/"))
+eurekaData <- unlist(strsplit(eurekaData, ","))
+eurekaData <- unlist(str_remove_all(eurekaData, "^[ \t]+")) %>% .[-14]
+
+#Add to our initial word list
+wordList <- c(wordList, eurekaData)
+```
+
+```{r}
+# Edureka Article
+urlEight <- "https://www.edureka.co/blog/how-to-become-a-data-scientist/"
+
+#Parse
+urlEight <- read_html(urlEight)
+
+#Reads the table in the html page (within "class selector")
+eurekaDataTwoA <- html_nodes(urlEight, "ol li span") %>%
+  html_text() 
+
+eurekaDataTwoB <- html_nodes(urlEight, "ul li span") %>%
+  html_text() %>%
+  .[8:50] 
+
+eurekaDataTwoB <- unlist(str_split(eurekaDataTwoB, "\\(.*"))
+eurekaDataTwoB <- unlist(stri_remove_empty(eurekaDataTwoB))
+eurekaDataTwoB <- unlist(str_split(eurekaDataTwoB, "\\sand\\s"))
+eurekaDataTwoB <- unlist(str_split(eurekaDataTwoB, ","))
+eurekaDataTwoB <- unlist(str_split(eurekaDataTwoB, "VS"))
+eurekaDataTwoB <- unlist(str_split(eurekaDataTwoB, "\\sor\\s"))
+eurekaDataTwoB <- unlist(str_remove(eurekaDataTwoB, "^[ \t]+"))
+eurekaDataTwoB <- unlist(str_remove(eurekaDataTwoB, "[ \t]+$"))
+
+#Add to our initial word list
+wordList <- c(wordList, eurekaDataTwoA,eurekaDataTwoB[1:51])
+```
+
+```{r}
+# Upxacademy Course
+urlNine <- "https://upxacademy.com/6-month-certificate-programme-in-data-science/#1538496998122-831d6e1c-dc2a"
+
+#Parse
+urlNine <- read_html(urlNine)
+
+#Reads the table in the html page (within "class selector")
+upData <- html_nodes(urlNine, "ol li span") %>%
+  html_text() 
+
+upData <- html_nodes(urlNine, ".vc_tta-panel") %>%
+  html_text() %>%
+  .[1:25]
+
+upData <- unlist(str_extract_all(upData, ":.*\\n"))
+upData <- unlist(str_remove_all(upData, "^:\\s"))
+upData <- unlist(str_remove_all(upData,","))
+upData <- unlist(str_remove_all(upData,"\\n"))
+
+#Add to our initial word list
+wordList <- c(wordList, upData)
+
+wordList <- unlist(str_remove_all(wordList, "skills"))
+wordList <- unlist(str_split(wordList, "\\("))
+```
+
+```{r}
+# Towards Data Science
+urlTen <- "https://towardsdatascience.com/top-10-skills-for-a-data-scientist-in-2020-2b8e6122a742"
+
+#Parse
+urlTen <- read_html(urlTen)
+
+#Reads the table in the html page (within "class selector")
+tdData <- html_nodes(urlTen, "h1") %>%
+  html_text() %>%
+  .[2:10]
+
+tdData <- unlist(str_split(tdData, '&'))
+tdData <- unlist(str_split(tdData, 'and'))
+tdData <- unlist(str_split(tdData, '/'))
+tdData <- unlist(str_remove_all(tdData, ','))
+tdData <- unlist(str_remove_all(tdData, '^\\d*\\.*\\s*'))
+
+#Add to our initial word list
+wordList <- c(wordList, upData)
+
+#Word List Preview
+kable(wordList) %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "200px")
+```
+## Clean The list
+
+```{r}
+wordList <- word(wordList)
+wordList <- paste(unique(wordList))
+wordList <- unlist(str_remove_all(wordList, ":"))
+wordList <- unlist(str_remove_all(wordList, "\\)"))
+```
+
+## Scrape again for Talley (not case sensitive I couldnt get that to work)
+```{r}
+websites <- c("https://en.wikipedia.org/wiki/Data_science", "https://www.kdnuggets.com/2019/04/top-data-science-machine-learning-methods-2018-2019.html", "https://landing.online.utica.edu/msds-af?utm_source=banshee&utm_campaign=discoverdatascience&utm_content=mds&utm_term=datascience&viq_channel=af", "https://landing.onlineprograms.smumn.edu/msbida-af?utm_source=banshee&utm_campaign=discoverdatascience&utm_content=mds&utm_term=datascience&viq_channel=af", "https://www.bls.gov/ooh/computer-and-information-technology/computer-and-information-research-scientists.htm#tab-4", "https://www.bls.gov/ooh/math/operations-research-analysts.htm#tab-4", "https://www.edureka.co/blog/data-scientist-skills/", "https://www.edureka.co/blog/how-to-become-a-data-scientist/", "https://upxacademy.com/6-month-certificate-programme-in-data-science/#1538496998122-831d6e1c-dc2a", "https://towardsdatascience.com/top-10-skills-for-a-data-scientist-in-2020-2b8e6122a742", "https://www.kdnuggets.com/2019/09/core-hot-data-science-skills.html", "https://www.kdnuggets.com/2019/05/poll-top-data-science-machine-learning-platforms.html")
+
+wordCount <- rep(0, 196)
+# For loop to read through all pages
+for(x in 1:length(websites)){
+  readPage <- html_nodes(read_html(websites[x]), "body") %>% html_text()
+  
+  for (y in 1:length(wordList)){
+  count <- 0
+  
+  if(str_detect(readPage, wordList[y])){
+    count<- count+ 1
+  } 
+  wordCount[y]<- wordCount[y] + count
+  }  
+}
+
+wordFreq <- data.frame("keyWord" = wordList, "Count" = wordCount)
+
+#Word List Preview
+kable(wordFreq) %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "200px")
+```
+
+# KD Poll Tables Info
+
+n = 1500
+
+Table 1: Core DS Skills
+
+Table 2: Emerging DS Skills
+
+Table 3: Other DS Skills (10 - 30 people asked identified this skills)
+
+Questions Asked:
+1. Which skills / knowledge areas do you currently have (at the level you can use in work or research)?
+
+2. Which skills do you want to add or improve?
+```{r}
+#Clean KD Nuggets DS Table 
+# Towards Data Science
+urlTen <- "https://www.kdnuggets.com/2019/09/core-hot-data-science-skills.html"
+
+#Parse
+urlTen <- read_html(urlTen)
+
+#Reads the tables in the html page
+KdTables <- html_nodes(urlTen, "table") %>%
+  html_table(fill = TRUE)
+
+#Tables
+kdTableOne <- KdTables[[1]]
+kdTableTwo <- KdTables[[2]]
+kdTableThree <- KdTables[[3]]
+
+
+kable(kdTableOne) %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "200px")
+
+kable(kdTableTwo) %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "200px")
+
+kable(kdTableThree) %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "200px")
+
+#Employment Types
+kdEmpType <- html_nodes(urlTen, ".three_ul li") %>%
+  html_text() %>%
+  .[1:11]
+
+#Get Columns for DF
+colData <- unlist(str_extract_all(kdEmpType, '.*,'))
+colDataLeft <- unlist(str_remove_all(colData, ','))
+colDataRight <- unlist(str_extract_all(kdEmpType, '\\d+.\\d+'))
+
+#CReate DFs
+#Employment Type
+EmpType <- data.frame("EmpTyp" = as.factor(colDataLeft[1:5]), "Percent" = as.numeric(colDataRight[1:5]))
+
+#Regional Distribution
+regDis<- data.frame("Region" = as.factor(colDataLeft[6:11]), "Percent" = as.numeric(colDataRight[6:11]))
+
+#display Tables
+kable(regDis) %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "200px")
+
+kable(EmpType) %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "200px")
+```
+
+## KD Poll Software
+
+The 20th annual KDnuggets Software Poll had over 1,800 participants. Data is in percent of voters.
+
+`topSF`: Top Analytics/DS/ML Software in 2019 - 2017
+
+`topUse`: Major Analytics/Data Science/ML Software with the largest increase in usage
+
+`declineUse`: Major Analytics/Data Science Platform with the largest decline in usage
+
+`dlPlat`:Major Deep Learning Platforms
+
+`bdTools`: Big Data Tools
+
+`progLang`: Programming Languages
+
+```{r}
+#Clean KD Nuggets DS Table 
+# Towards Data Science
+urlEleven <- "https://www.kdnuggets.com/2019/05/poll-top-data-science-machine-learning-platforms.html"
+
+#Parse
+urlEleven <- read_html(urlEleven)
+
+#Reads the tables in the html page
+KdTableTwo <- html_nodes(urlEleven, "table") %>%
+  html_table(fill = TRUE)
+
+topSF <- KdTableTwo[1]
+topUse <- KdTableTwo[2]
+declineUse <- KdTableTwo[3]
+dlPlat <- KdTableTwo[4]
+bdTools <- KdTableTwo[5]
+progLang <- KdTableTwo[6]
+
+kable(topSF) %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "200px")
+
+kable(topUse) %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "200px")
+
+kable(declineUse) %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "200px")
+
+kable(dlPlat) %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "200px")
+
+kable(bdTools) %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "200px")
+
+kable(progLang) %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "200px")
+```
+
+# Data
+
+```{r}
+# Word Frequency from webscraping 
+kable(wordFreq) %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "200px")
+
+#First KD Tables
+kable(kdTableOne) %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "200px")
+
+kable(kdTableTwo) %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "200px")
+
+kable(kdTableThree) %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "200px")
+
+#Second KD Tables
+kable(regDis) %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "200px")
+
+kable(EmpType) %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "200px")
+
+kable(topSF) %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "200px")
+
+kable(topUse) %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "200px")
+
+kable(declineUse) %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "200px")
+
+kable(dlPlat) %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "200px")
+
+kable(bdTools) %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "200px")
+
+kable(progLang) %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "200px")
+```
