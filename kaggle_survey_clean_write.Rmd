@@ -85,6 +85,7 @@ for (i in 1:ncol(df)){
 }
 df<- df %>% slice(2:dim(df)[1])
 df$id <- 1:nrow(df)
+df[is.na(df)] <- 0
 return(df)
 }
 ```
@@ -98,18 +99,25 @@ df_prime_tool<- df %>%
   slice(2:dim(df)[1]) %>%
   rename(primary_analysis_tool = Q14)
 df_prime_tool$id <- 1:nrow(df_prime_tool)
+
+df_prime_tool[is.na(df_prime_tool)] <- 0
+
 # ML year EXP
 df_ml_xp<- df %>% select(Q23) %>%
   slice(2:dim(df)[1]) %>%
   rename(ml_exp_years = Q23) %>%
   mutate(ml_exp_years = str_remove_all(ml_exp_years, "years"))
 df_ml_xp$id <- 1:nrow(df_ml_xp)
+df_ml_xp[is.na(df_ml_xp)] <- 0
+
 # language to learn first?
 df_lang_rec<- df%>% 
   select(Q19) %>%
-  slice(1:dim(df)[1]) %>%
+  slice(2:dim(df)[1]) %>%
   rename(rec_lang = Q19)
 df_lang_rec$id <- 1:nrow(df_lang_rec)
+df_lang_rec[is.na(df_lang_rec)] <- 0
+
 #media sources for DS
 df_media<- df %>% select(Q12_Part_1:Q12_Part_12) %>%
   slice(2:dim(df)[1]) %>%
@@ -126,6 +134,8 @@ df_media<- df %>% select(Q12_Part_1:Q12_Part_12) %>%
          none = Q12_Part_11,
          other = Q12_Part_12)
 df_media$id <- 1:nrow(df_media)
+df_media[is.na(df_media)] <- 0
+
 # DS course work including University
 df_online_ed<- df %>% 
   select(Q13_Part_1:Q13_Part_12) 
@@ -170,7 +180,7 @@ df_cloud_ml<- rename.columns(df_cloud_ml)
 df_db<- df %>% select(Q34_Part_1:Q34_Part_12)
 df_db<- rename.columns(df_db)
 
-df_list <- list(df_prime_tool, df_ml_xp, df_lang_rec, df_media, df_online_ed, df_ide, df_lang, df_viz, df_ml_algo, df_ml_tool, df_cv, df_nlp, df_cloud, df_cloud_prod, df_big_data, df_cloud_ml, df_db)
+df_list <- list(df_media, df_online_ed, df_ide, df_lang, df_viz, df_ml_algo, df_ml_tool, df_cv, df_nlp, df_cloud, df_cloud_prod, df_big_data, df_cloud_ml, df_db)
 ```
 
 ## Check for outliers
@@ -178,6 +188,7 @@ df_list <- list(df_prime_tool, df_ml_xp, df_lang_rec, df_media, df_online_ed, df
 There are no possible numeric outliers as users did not input numbers by hand but instead chose a bin provided by the survey writers.
 
 ## Cleaning Salary data
+
 
 I will clean salary data to make it numeric, allowing it to be easily plotted.
 
@@ -294,14 +305,42 @@ We have lots of information broken down into many sub dataframes. I will attempt
 plot_df <- function(df){
   mega_df <- inner_join(df_basic, df, by = 'id')
   colNames <- names(df %>% select(-id))
+  
+  ## First loop: iterate through the columns of the dataframe
   for (i in colNames){
-    myplot <- mega_df %>% ggplot(aes_string(x = i, y = "compensation_USD", fill = i)) + geom_boxplot() + theme(axis.text.x = element_text(angle = 90))
-    print(myplot) 
+    ## Calculate the median for each group in said column
+    meds <- by(mega_df$compensation_USD, mega_df[i], median, na.rm = TRUE)
+    if (length(meds) > 2){
+      ## Iterate over each group in the column
+      for (j in 1:length(meds)){
+        ## If the group median is greater than the null median
+        if (meds[[j]] > meds['0']){
+            myplot <- mega_df %>% ggplot(aes_string(x = i, y = "compensation_USD", fill = i)) + geom_boxplot() + theme(axis.text.x = element_text(angle = 90))
+            print(myplot)
+            print(meds)
+        }
+      }
+    }else{
+      if (meds[[2]] > meds['0']|meds[[1]] > meds['0']){
+        myplot <- mega_df %>% ggplot(aes_string(x = i, y = "compensation_USD", fill = i)) + geom_boxplot() + theme(axis.text.x = element_text(angle = 90))
+          print(myplot)
+          print(meds)
+      }
+    }
+  
   }
 }
 ```
 
 ```{r}
+df_prime_tool %>% inner_join(df_basic, by = 'id') %>% ggplot(aes(x = primary_analysis_tool, y = compensation_USD, fill = primary_analysis_tool)) + geom_boxplot() + theme(axis.text.x = element_text(angle = 90))
+
+by(df_basic$compensation_USD, df_prime_tool$primary_analysis_tool, median, na.rm = TRUE)
+
+df_ml_xp %>% inner_join(df_basic, by = 'id') %>% ggplot(aes(x = ml_exp_years, y = compensation_USD, fill = ml_exp_years)) + geom_boxplot() + theme(axis.text.x = element_text(angle = 90))
+
+by(df_basic$compensation_USD, df_ml_xp$ml_exp_years, median, na.rm = TRUE)
+
 for (i in df_list){
   plot_df(data.frame(i))
 }
