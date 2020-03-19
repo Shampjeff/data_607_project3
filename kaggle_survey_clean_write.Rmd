@@ -299,32 +299,6 @@ kaggle_ref <- Id(schema = "Kaggle", table = "Participant")
 dbWriteTable(conn, name = kaggle_ref, value = df_basic, append = T)
 ```
 
-## Load Data from Backend View
-
-```{r access-views}
-##TO DO
-
-#CREATE CONNECTION
-
-#READ FROM VIEW
-```
 
 
-
-
-## ANALYSIS SECTION BELOW
-
-```{r}
-# df_basic %>%
-#   ggplot() + 
-#   geom_bar(aes(x=age),fill="lightblue")
-```
-
-```{r}
-# df_basic %>%
-#   filter(country=="United States of America" & compensation_USD != "NA") %>%
-#   ggplot() + 
-#   geom_bar(aes(x=compensation_USD),fill="lightblue") +
-#   theme(axis.text.x = element_text(angle = 45, hjust = 1))
-```
 

@@ -5,6 +5,10 @@ date: "3/19/2020"
 output: html_document
 ---
 
+# Kaggle DS survery 2019 - PART TWO
+
+## R LIBRARY SETUP
+
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
@@ -20,7 +24,7 @@ conn <- dbConnect(odbc(),
                   Server = "spsangelclaudio.database.windows.net",
                   Database = "DataScienceValue",
                   UID = "spsadmin",
-                  PWD = "bKuNsh6bphei23c")
+                  PWD = "noneYA")
 ```
 
 ## Get View Object for Use
