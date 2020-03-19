@@ -1,0 +1,328 @@
+---
+title: "LQ- Rough Draft Scraped Data And Visuals"
+author: "Layla Quinones"
+date: "3/14/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE, warning = FALSE, hide = TRUE}
+library(rvest)
+library(stringi)
+library(tidyverse)
+library(RCurl)
+library(RColorBrewer)
+library(xml2)
+library(kableExtra)
+library(Stack)
+```
+
+#Introduction 
+1. Approach - goal
+2. Small Blurb about journey
+
+## Core Data Science Skills Professionals Have and Want
+
+In a study published on [KD Nuggets](https://www.kdnuggets.com/2019/09/core-hot-data-science-skills.html), a group of 1500 Data Scientists were asked the following questions:
+
+1. Which skills / knowledge areas do you currently have (at the level you can use in work or research)?
+
+2. Which skills do you want to add or improve?
+
+The data from this poll was seperated into 3 seperate tables. The steps outlined below illustrate the process of scraping the web page for specific tables, stacking the tables and tidying the data so that it can be visualized. 
+
+```{r, warning = FALSE}
+#KD Nuggets website with tables
+urlTen <- "https://www.kdnuggets.com/2019/09/core-hot-data-science-skills.html"
+
+#Parse the html file
+urlTen <- read_html(urlTen)
+
+#Reads the tables in the html page and places them in a list
+KdTables <- html_nodes(urlTen, "table") %>%
+  html_table(fill = TRUE)
+
+#Select each table and add a column with category name (for plotting purposes)
+kdTableOne <- KdTables[[1]] %>% mutate(Type = as.factor("Established Skills"))
+kdTableTwo <- KdTables[[2]] %>% mutate(Type = as.factor("New Skills"))
+kdTableThree <- KdTables[[3]] %>% mutate(Type = as.factor("Other"))
+
+#Stack the Data Frames into one
+combinedKdTable <- Stack(kdTableOne, kdTableTwo)
+combinedKdTable <- Stack(combinedKdTable, kdTableThree)
+
+#Rename Columns
+combinedKdTable <- rename(combinedKdTable, "want" = "%Want", "have" = "%Have","wantHaveRatio" ="%Want/%Have") %>% gather("Category", "Percent", "have":"wantHaveRatio")
+
+#Take away % and cast to numeric for plotting
+combinedKdTable$Percent <- as.numeric(unlist(str_remove_all(combinedKdTable$Percent, "\\%")))
+
+#Put back into wide format for plotting
+combinedKdTable<- spread(combinedKdTable, Category, Percent) %>% select(Skill, want,have, Type)
+```
+
+As a result the following table and plot was generated.
+
+```{r, warning =FALSE}
+#Display Table
+kable(combinedKdTable[1:3]) %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "200px")
+
+#plotting have vs want
+ggplot(combinedKdTable, aes(x=have, y=want, color = Type)) +
+  scale_color_brewer(palette="Dark2") +
+  labs(y = "Percent Want", x ="Percent Have", title = "Skills Data Scientists Want vs Have (Clustering)") +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  geom_label(label=combinedKdTable$Skill, nudge_x = 0.25, nudge_y = 0.25, check_overlap = T)
+  
+```
+
+> Here we can see clearly that the skills identified in this survey falls into three categories: skills that are well established that have a high percentage of respondants that have them and a low percentage of respondants who want them(green); skills that are in high demand with a high percentage of respondents reporting they want that skill and do not have them(orange); and skills that very few people want and very few people have (purple). Below each category is analyzed in detail.
+
+### A closer look at "Well Establish" Data Science Skills 
+
+If we take a closer look at the proportion of %Want/%Have of skills that fall into the "Well Established" category we can gain some insight into which skills remain the most saught out skills. 
+
+```{r}
+#Rename Column
+kdTableOne <- rename(kdTableOne, "want" = "%Want", "have" = "%Have","wantHaveRatio" ="%Want/%Have") %>% gather("Category", "Percent", "have":"wantHaveRatio")
+
+#Clean data
+kdTableOne$Percent <- as.numeric(unlist(str_remove_all(kdTableOne$Percent, "\\%")))
+
+#Table with Ratio of want/have only
+propWantHave <- spread(kdTableOne, Category, Percent) %>% select(Skill, wantHaveRatio)
+
+#Display
+kable(propWantHave) %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "200px")
+
+#Visualization
+ggplot(propWantHave, aes(y=wantHaveRatio, x=reorder(Skill,wantHaveRatio))) +
+  geom_col(fill = "lightgreen", position="dodge") +
+  labs(y = "%Want/%Have Ratio", x ="Established DS Skills", title = "Ratio of %Want/%Have DS Skills") +
+   theme(plot.title = element_text(hjust = 0.5)) +
+  coord_flip() 
+```
+
+> The top 3 established skills with the greatest proportion of percent want to percent have is Machine Learning, Scikit-learn and Python, whereas the 3 skills with the lowest proportion was Excel, Critical Thinking and Communication skills (which may indicate skills that data scientists are highly proficent at).
+
+### A Closer Look At Emerging Data Science Skills
+
+If we take a closer look at the proportion of %Want/%Have of skills that fall into the "Emerging" category we can gain some insight into which skills are in high demand and are fairly new in the field. 
+
+```{r}
+#Rename Columns
+kdTableTwo <- rename(kdTableTwo, "want" = "%Want", "have" = "%Have","wantHaveRatio" ="%Want/%Have") %>% gather("Category", "Percent", "have":"wantHaveRatio")
+
+#Clean data
+kdTableTwo$Percent <- as.numeric(unlist(str_remove_all(kdTableTwo$Percent, "\\%")))
+
+#Table with Ratio of want/have
+propWantHaveNew <- spread(kdTableTwo, Category, Percent) %>% select(Skill, wantHaveRatio)
+
+#Display
+kable(propWantHaveNew) %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "200px")
+
+#Visualization
+ggplot(propWantHaveNew, aes(y=wantHaveRatio, x=reorder(Skill,wantHaveRatio))) +
+  geom_col(fill = "lightpink", position="dodge") +
+  labs(y = "%Want/%Have Ratio", x ="New DS Skills", title = "Ratio of %Want/%Have for Emerging DS Skills") +
+   theme(plot.title = element_text(hjust = 0.5)) +
+  coord_flip() 
+```
+
+> The top 3 emerging skills with the greatest proportion of percent want to percent have is Pytorch, Scala and "Python"Other Big Data Tools", whereas the 3 skills with the lowest proportion was Unstructured Data, Kaggle and NLP Text Processing.
+
+## KD Poll Software
+In a study published on [KD Nuggets](https://www.kdnuggets.com/2019/05/poll-top-data-science-machine-learning-platforms.html)
+1,800 participants were asked to identify their favorite platforms for Analytics, Data Science and Machine Learning Software in 2019 - 2017. Data was processed and presented in percent of voters.
+
+The data from this poll was seperated into 6 seperate tables. The steps outlined below illustrate the process of scraping the web page for specific tables of  interest and visualizing them using bar plots.
+
+### Top Analytics/DS/ML Software in 2019 - 2017
+
+To gain some insight into the growth in demand for various software platforms, we decided to look at trends in poll responses from 2017 - 2019 by visualizing the poll data in a line graph. 
+
+```{r, warning = FALSE}
+#Webpage with Data 
+urlEleven <- "https://www.kdnuggets.com/2019/05/poll-top-data-science-machine-learning-platforms.html"
+#Parse html page
+urlEleven <- read_html(urlEleven)
+
+#Reads the tables in the html page
+kdTableFour <- html_nodes(urlEleven, "table") %>%
+  html_table(fill = TRUE)
+
+#1st Table on the page
+topSF <- kdTableFour[[1]]
+
+#Change Column Names
+topSF <- rename(topSF, "2019" = "2019% share", "2018" = "2018% share","2017" ="2017% share") %>% gather("Year", "Percent", "2019":"2017")
+
+#set numeric types for line plots
+topSF$Percent <- as.numeric(unlist(str_remove_all(topSF$Percent, "\\%")))
+topSF$Year <- as.numeric(topSF$Year)
+
+#Display
+kable(topSF) %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "200px")
+
+#Line Plot
+ggplot(topSF) +
+  geom_line(aes(x=Year, y=Percent, col = Software)) +
+  labs(title= "Top Data Science Tools", x = "Year", y = "Percent of People Using Tool") +
+  theme(plot.title = element_text(hjust = 0.5)) 
+```
+
+> Python is highest all three years.
+
+> R begins is declining.
+
+> RapidMiner is the highest increase in software.
+
+> Tensorflow, Anaconda and Keras are increaing in use.
+
+### Data Science Software with Largest Increase in Usage
+
+If we take a closer look at the difference between percent of responses in 2018 and 2019 we can gain some insight into tools that may be gaining demand or popularity in the Data Science community.
+
+```{r}
+#Select table 2 from list of tables
+topUse <- kdTableFour[[2]]
+
+#Column Names
+topUse <- rename(topUse, "2019" = "2019% share", "2018" = "2018% share","change" ="% change") %>% gather("Year", "Percent", "2019":"change")
+
+#Data types and selecting difference only
+topUse$Percent <- as.numeric(unlist(str_remove_all(topUse$Percent, "\\%")))
+topUse <- filter(topUse, Year == "change")
+
+#Display
+kable(topUse) %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "200px")
+
+#Visualization %change
+ggplot(topUse, aes(y=Percent, x=reorder(Software,Percent))) +
+  geom_col(fill = "blue") +
+  labs(y = "Percent Increase", x ="Data Science Tools", title = "Software With Largest Increase in Use (2018 - 2019)") +
+   theme(plot.title = element_text(hjust = 0.5)) +
+  coord_flip() 
+```
+
+> This Data can indicate software tools/skills that will be in demand in future years.
+
+### Data Science Software with Largest Decrease in Usage
+
+If we take a closer look at the difference between percent of responses in 2018 and 2019 we can gain some insight into tools that may be loosing popularity in the Data Science community (and being replaced).
+
+```{r}
+#Select Table 3
+declineUse <- kdTableFour[[3]]
+
+#Clean Up the table for analysis
+declineUse <- rename(declineUse, "2019" = "2019% share", "2018" = "2018% share","change" ="% change") %>% gather("Year", "Percent", "2019":"change")
+
+#Data Types and Filter
+declineUse$Percent <- as.numeric(unlist(str_remove_all(declineUse$Percent, "\\%")))
+declineUse <- filter(declineUse, Year == "change")
+
+#Display % change
+kable(declineUse) %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "200px")
+
+#Visualization
+ggplot(declineUse, aes(y=Percent, x=reorder(Platform,Percent))) +
+  geom_col(fill = "blue") +
+  labs(y = "Percent Decline", x ="Data Science Tools", title = "Software With Largest Decrease in Use (2018 - 2019)") +
+   theme(plot.title = element_text(hjust = 0.5)) +
+  coord_flip() 
+```
+
+> Indicates tools/skills that will be obselete in the future.
+
+### Deep Learning Platform Trends
+
+Along with our goal to analyze tools that are increasing and decreasing popularity we can also take a look at the deep learning platforms identified by data scientists in this poll.
+
+```{r}
+# Table 4
+dlPlat <- kdTableFour[[4]]
+
+#Rows names and long format
+dlPlat <- rename(dlPlat, "2019" = "2019% share", "2018" = "2018% share","change" ="% change") %>% gather("Year", "Percent", "2019":"change")
+
+#Clean data
+dlPlat$Percent <- as.numeric(unlist(str_remove_all(dlPlat$Percent, "\\%")))
+dlPlat <- filter(dlPlat, dlPlat$Year == "change")
+
+#Display
+kable(dlPlat) %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "200px")
+
+#Visualization
+ggplot(dlPlat, aes(y=Percent, x=reorder(Platform,Percent))) +
+  geom_col(fill = "lightgreen") +
+  labs(y = "Percent Change", x ="Data Science Tools", title = "Deep Learning Platforms Trends (2018 - 2019)") +
+   theme(plot.title = element_text(hjust = 0.5)) +
+  coord_flip() 
+```
+
+> We can see that Pytorch is gaining popularity at a high rate over 2018 - 2019 whereas tools such as Thenao, Caffe, and Microsoft Cognitive Toolkit is decreasing in popularity.
+
+#Programming Languages in Demand for Data Scientists
+
+Lastly, we were interested in looking at trends in programming languages through 2018-2019 to gain some insight into languages that may be gaining or losing popularity in data science.
+
+```{r}
+progLang <- kdTableFour[[6]]
+kable(progLang) %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "200px")
+
+#Clean Up the table for analysis
+progLang <- rename(progLang, "2019" = "2019% share", "2018" = "2018% share","change" ="% change") %>% gather("Year", "Percent", "2019":"change")
+
+progLang$Percent <- as.numeric(unlist(str_remove_all(progLang$Percent, "\\%")))
+
+progLang <- filter(progLang, Year == "change") %>% drop_na()
+
+#Visualization of Want and Have
+ggplot(progLang, aes(y=Percent, x=reorder(Platform,Percent))) +
+  geom_col(fill = "pink") +
+  labs(y = "Percent Change", x ="Programming Platforms", title = "Programming Platform Trends (2018 - 2019)") +
+   theme(plot.title = element_text(hjust = 0.5)) +
+  coord_flip() 
+```
+
+> Interestingly enought, Julia has the highest percent positive change (increasing popularity) while Scala has the highest percent negative change (decreasing popularity). Python seems to be maintaining it's popularity with the lowest percent change in any direction. I think that its interesting that C/C++ saw a n increase positive change. I wonder what thats about. 
+
+# To Keep or not to keep ---??
+
+```{r, warning == FALSE}
+bdTools <- kdTableFour[[5]]
+
+kable(bdTools) %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "200px")
+
+#Clean Up the table for analysis
+bdTools <- rename(bdTools, "2019" = "2019% share", "2018" = "2018% share","change" ="% change") %>% gather("Year", "Percent", "2019":"2018")
+
+bdTools$Percent <- as.numeric(unlist(str_remove_all(bdTools$Percent, "\\%")))
+
+#Visualization of Want and Have
+ggplot(bdTools, aes(fill=Year, y=Percent, x=reorder(Platform,Percent))) + 
+  scale_fill_brewer(palette="Accent") +
+  geom_col(position="dodge") +
+  labs(y = "Percent of Respondants", x =" Big Data Tools", title = "Big Data Tools Used in DS") +
+   theme(plot.title = element_text(hjust = 0.5)) +
+  coord_flip()
+```
