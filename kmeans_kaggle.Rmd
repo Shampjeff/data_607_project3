@@ -241,13 +241,13 @@ All that work and it turns out to be 5 clusters, Could have just guessed.
 
 
 ```{r}
-five_k<-kmeans(df_complete_cat,centers=6)
+five_k<-kmeans(df_complete_cat,centers=5)
 df_complete$cluster<- as.factor(five_k$cluster)
 ```
 
 ```{r}
 df_complete %>%
-  filter(cluster == 2) %>%
+  filter(cluster == 4) %>%
   ggplot(aes(x=compensation_USD, fill=age)) +
   geom_histogram(alpha = 0.5, stat = 'count', position = 'identity') + 
   theme(axis.text.x = element_text(angle = 45))
@@ -283,9 +283,6 @@ df_complete %>% ggplot(aes(x = code_exp_years, y = compensation_USD, fill = code
   theme(axis.text.x = element_text(angle = 45))
 ```
 
-```{r}
-names(df_complete)
-```
 
 
 
@@ -295,6 +292,72 @@ df_complete %>% ggplot(aes(x = Ml_exp_years, y = compensation_USD, fill = Ml_exp
   facet_wrap(~cluster) +
   theme(axis.text.x = element_text(angle = 45))
 ```
+
+
+```{r fig.width=8, fig.height=6}
+df_complete %>% ggplot(aes(x = Rec_lang, y = compensation_USD, fill = Rec_lang)) + 
+  geom_boxplot(na.rm = T) + 
+  facet_wrap(~cluster) +
+  theme(axis.text.x = element_text(angle = 45))
+```
+
+```{r}
+cluster.category.count.plot<-function(df_basic, df_cat, clusters){
+  df<-subset(df_cat, select = -c(None, Other))
+  df_names<-c(names(df))
+  df<-df_basic %>%
+    inner_join(df, by = "id") %>%
+    filter(country == "United States of America") %>%
+    mutate(cluster = as.factor(clusters)) %>%
+    select(cluster,df_names)
+  df<-dummy_cols(.data = df, select_columns = df_names,remove_first_dummy = T, remove_selected_columns = T)
+  df<-df[,1:(length(df_names))]
+  df_names<-names(df)
+  df %>%
+   select(cluster, df_names) %>%
+   mutate_if(is.factor, as.integer) %>%
+   pivot_longer(-cluster, names_to = "category_type", values_to = "count") %>%
+   group_by(cluster, category_type) %>%
+   summarise(count = sum(count)) %>%
+  ggplot(aes(x = category_type, y = count, fill = category_type)) +
+  geom_col(na.rm = T) +
+  facet_wrap(~cluster) +
+  theme(axis.text.x = element_text(angle = 45))
+}
+```
+
+```{r fig.width=8, fig.height=6}
+cluster.category.count.plot(df_basic, df_ide, five_k$cluster)
+```
+
+```{r fig.width=8, fig.height=6}
+cluster.category.count.plot(df_basic, df_lang, five_k$cluster)
+```
+
+
+```{r fig.width=8, fig.height=6}
+cluster.category.count.plot(df_basic, df_big_data, five_k$cluster)
+```
+
+
+```{r fig.width=8, fig.height=6}
+cluster.category.count.plot(df_basic, df_cloud_ml, five_k$cluster)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
