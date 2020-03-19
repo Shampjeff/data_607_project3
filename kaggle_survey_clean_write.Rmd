@@ -180,7 +180,7 @@ df_cloud_ml<- rename.columns(df_cloud_ml)
 df_db<- df %>% select(Q34_Part_1:Q34_Part_12)
 df_db<- rename.columns(df_db)
 
-df_list <- list(df_media, df_online_ed, df_ide, df_lang, df_viz, df_ml_algo, df_ml_tool, df_cv, df_nlp, df_cloud, df_cloud_prod, df_big_data, df_cloud_ml, df_db)
+df_list <- list(df_ide, df_lang, df_viz, df_ml_algo, df_ml_tool, df_cv, df_nlp, df_cloud, df_cloud_prod, df_big_data, df_cloud_ml, df_db)
 ```
 
 ## Check for outliers
@@ -253,7 +253,7 @@ There is a clear distinction between male and female salaries, and a clear upwar
 
 First we get a feeling for each variable on its own via a bar plot. I am going to apply the same approach to years of experience to make it more useable in a plot.
 
-```{r}
+```{r, warning = FALSE}
 ##Cleaning up the education column
 df_basic$education <- str_replace_all(df_basic$education, "â€™", "'") %>% str_replace_all("Some collegeuniversity study without earning a bachelor's", "Some college" ) %>% str_replace_all('No formal education past high school', 'High School')
 
@@ -270,7 +270,7 @@ We see that the most common level of education is a master's degree, the most co
 
 ### Bivariate Plots
 
-```{r}
+```{r, warning = FALSE}
 df_basic %>%
   ggplot() + 
   geom_mosaic(aes(x = product(education, compensation_USD), fill = education), na.rm = TRUE) + xlab('Compensation') + ylab('Education') + ggtitle('Compensation by Education') + theme(axis.text = element_text(size = 6), axis.text.x = element_text(angle = 90))
@@ -288,10 +288,10 @@ df_basic %>%
 
 We find mostly what we would expect. Compensation goes up with education, is HIGHLY affected by country of origin, as US compensation greatly outpaces India's, and goes up with years of coding experience.
 
-```{r}
-df_basic %>% ggplot(aes(education, compensation_USD, fill = education)) + geom_boxplot()
+```{r, warning = FALSE}
+df_basic %>% ggplot(aes(education, compensation_USD, fill = education)) + geom_boxplot() + theme(axis.text.x = element_text(angle = 90))
 
-india_us %>% ggplot(aes(country, compensation_USD, fill = country)) + geom_boxplot()
+india_us %>% ggplot(aes(country, compensation_USD, fill = country)) + geom_boxplot() 
 
 df_basic %>% ggplot(aes(factor(code_exp_years), compensation_USD, fill = factor(code_exp_years))) + geom_boxplot()
 ```
@@ -300,50 +300,48 @@ df_basic %>% ggplot(aes(factor(code_exp_years), compensation_USD, fill = factor(
 
 We have lots of information broken down into many sub dataframes. I will attempt to access this information via a function rather than doing each dataframe individually.
 
-```{r}
-### Function to plot the small dataframes
-plot_df <- function(df){
+```{r, warning = FALSE}
+### Function to summarize the smaller dataframes into medians and counts
+summarize_df <- function(df){
+  titles <- c()
+  med <- c()
+  counts <- c()
   mega_df <- inner_join(df_basic, df, by = 'id')
   colNames <- names(df %>% select(-id))
   
-  ## First loop: iterate through the columns of the dataframe
+  ## iterate through the columns of the dataframe
+  ## each column is one skill
   for (i in colNames){
-    ## Calculate the median for each group in said column
-    meds <- by(mega_df$compensation_USD, mega_df[i], median, na.rm = TRUE)
-    if (length(meds) > 2){
-      ## Iterate over each group in the column
-      for (j in 1:length(meds)){
-        ## If the group median is greater than the null median
-        if (meds[[j]] > meds['0']){
-            myplot <- mega_df %>% ggplot(aes_string(x = i, y = "compensation_USD", fill = i)) + geom_boxplot() + theme(axis.text.x = element_text(angle = 90))
-            print(myplot)
-            print(meds)
-        }
-      }
-    }else{
-      if (meds[[2]] > meds['0']|meds[[1]] > meds['0']){
-        myplot <- mega_df %>% ggplot(aes_string(x = i, y = "compensation_USD", fill = i)) + geom_boxplot() + theme(axis.text.x = element_text(angle = 90))
-          print(myplot)
-          print(meds)
-      }
-    }
-  
+    ## Calculate the median and count for each column
+    new_df <- subset(mega_df, mega_df[i] != 0)
+    meds <- new_df %>% group_by_(i) %>% summarize(med = median(compensation_USD, na.rm = T), count = n())
+    titles <- append(titles, meds[[1]])
+    med <- append(med, meds[[2]])
+    counts <- append(counts, meds[[3]])
   }
+  ##Create a dataframe of all skill names, medians, counts
+  returndf <- data.frame('skill' = titles, 'medians' = med, 'counts' = counts)
+  return(returndf)
 }
 ```
 
-```{r}
-df_prime_tool %>% inner_join(df_basic, by = 'id') %>% ggplot(aes(x = primary_analysis_tool, y = compensation_USD, fill = primary_analysis_tool)) + geom_boxplot() + theme(axis.text.x = element_text(angle = 90))
+```{r, warning = FALSE}
 
-by(df_basic$compensation_USD, df_prime_tool$primary_analysis_tool, median, na.rm = TRUE)
+##Plot side dataframes that are in slightly different format
+df_prime_tool %>% inner_join(df_basic, by = 'id') %>% ggplot(aes(x = str_wrap(primary_analysis_tool, 12), y = compensation_USD, fill = primary_analysis_tool)) + geom_boxplot() + theme(axis.text.x = element_text(size = 6), legend.text = element_text(size = 6))
 
-df_ml_xp %>% inner_join(df_basic, by = 'id') %>% ggplot(aes(x = ml_exp_years, y = compensation_USD, fill = ml_exp_years)) + geom_boxplot() + theme(axis.text.x = element_text(angle = 90))
+df_ml_xp %>% inner_join(df_basic, by = 'id') %>% ggplot(aes(x = factor(clean_numeric_bins(ml_exp_years)), y = compensation_USD, fill = factor(clean_numeric_bins(ml_exp_years)))) + geom_boxplot() + theme(axis.text.x = element_text(angle = 90))
 
-by(df_basic$compensation_USD, df_ml_xp$ml_exp_years, median, na.rm = TRUE)
-
+##Plot other side dataframes using function created.
 for (i in df_list){
-  plot_df(data.frame(i))
+  winnerdf <- summarize_df(data.frame(i))
+  winnerdf <- winnerdf %>% filter(!(skill %in% c('None', 'Other')))
+  
+  plots <- winnerdf %>% ggplot(aes(counts, medians, color = str_wrap(skill, 15))) + geom_point() + theme(legend.text = element_text(size = 5), legend.title = element_blank()) + xlab('Popularity (counts)') +ylab('Median Compensation')
+  print(plots)
 }
 
 ```
+
 ### Breakdown of Results
+
