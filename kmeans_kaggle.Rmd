@@ -8,9 +8,9 @@ output:
     highlight: vignette
 ---
 
-# Kaggle DS survery 2019 - Clean and Write to DB
+# Kaggle DS survery 2019 - K Means Analysis
 
-This file is load the Kaggle Data Science Survey for 2019, cleans it, divides the questions into subsets, and writes the subsets to our project SQL server. 
+Our approach for this data set is quantify the top data science skills using salary of employed data scientists. This survey published by Kaggle gathers information about data scientists, the technologies and languages they use as well as salary and demographics. 
 
 ```{r, include=FALSE}
 library(tidyr)
@@ -25,7 +25,6 @@ library(fastDummies)
 ```
 
 
-Below is the bulk data file. We don't know to drag around all the data all the time so I'm going to split this dataframe up into subsets and clean them up for easy tidying downstream. 
 
 ```{r}
 file<- "Data/multiple_choice_responses.csv"
@@ -36,7 +35,6 @@ df2 <- df[2:nrow(df),] %>% filter(Q5 == 'Data Scientist')
 df <- rbind(row_1, df2)
 ```
 
-The first table we want is the basic information; age, country, education level, company size, salary, experience level, etc. 
 
 ```{r}
 df_basic<- df %>%
@@ -69,7 +67,6 @@ df_basic$id <- 1:nrow(df_basic)
 head(df_basic, 10)
 ```
 
-A lot of columns end with a technology or choice so i'll rename the columns based the row selection choice. Also cleaning the column names to standard format. 
 
 ```{r}
 rename.columns<- function(df){
@@ -91,7 +88,6 @@ return(df)
 }
 ```
 
-Rip throught the subsets for cleaning.
 
 ```{r}
 # Primary Tool for DA at school/work
@@ -203,6 +199,7 @@ df_complete<- df_complete[,!names(df_complete) %in% drops]
 df_complete$id = 1:nrow(df_complete)
 ```
 
+Combining data tables and converting the text based answers into categorical dummy variables for KMeans. 
 
 ```{r}
 df_complete<- df_basic %>%
@@ -218,8 +215,11 @@ df_complete_cat<-df_complete_cat[ ,(ncol(df_complete)+1):ncol(df_complete_cat)]
 df_complete_cat[is.na(df_complete_cat)]<--1
 ```
 
+K Means algorthim - Running the algorthim 100 times and averaging the results. 
 
-```{r, warning=F}
+```{r, warning=FALSE}
+run_kmean <- FALSE
+if (run_kmean == TRUE){
 set.seed(9450)
 k_range<-2:30
 trials <-100                   # Run K Means 100 times to average 
@@ -232,32 +232,27 @@ for(v in k_range){
  }
  avg_tot_wss[v-1] <-mean(vec_tot_wss)    # Average total withinss
 }
+}
 plot(k_range,avg_tot_wss,type="b", main="Total Within SS by Various K",
  ylab="Average Total Within Sum of Squares",
  xlab="Value of K")
 ```
 
-All that work and it turns out to be 5 clusters, Could have just guessed. 
-
+Four clusters seems to be a good fit. I explored a few other options, but three seems like meaningful number of groups for this data. 
 
 ```{r}
-five_k<-kmeans(df_complete_cat,centers=5)
+# Assign the cluster values
+five_k<-kmeans(df_complete_cat,centers=4)
 df_complete$cluster<- as.factor(five_k$cluster)
 ```
 
-```{r}
-df_complete %>%
-  filter(cluster == 4) %>%
-  ggplot(aes(x=compensation_USD, fill=age)) +
-  geom_histogram(alpha = 0.5, stat = 'count', position = 'identity') + 
-  theme(axis.text.x = element_text(angle = 45))
-```
+## K Means Clusters and Data Science Skills
 
+We have four groups and they are demonstrate how this field is varied in skills, technologies, and people claiming the title. 
 
-```{r fig.width=8, fig.height=6}
-df_complete %>% ggplot(aes(x = gender, y = compensation_USD, fill = gender)) + geom_boxplot(na.rm = T) + facet_wrap(~cluster)
-```
+Below is a plot of the spread of the compensation by age range for each cluster. 
 
+Clusters 3 and 4 appear to be similar for these categories where as cluster one and two appear distinict. Cluster two appeasrs to be newcomers to data science. 
 
 ```{r fig.width=8, fig.height=6}
 df_complete %>% ggplot(aes(x = age, y = compensation_USD, fill = age)) +
@@ -265,6 +260,7 @@ df_complete %>% ggplot(aes(x = age, y = compensation_USD, fill = age)) +
   facet_wrap(~cluster)
 ```
 
+Below is compensation vs. education level for each cluster. That is interesting is that in cluster one, the spread is large for people without a degree. Cluster one also had very highly paid people in the 70+ age range, so our data science managers might be in this group. Clusters three and four appeat similar in this category. 
 
 ```{r fig.width=8, fig.height=6}
 df_complete %>% ggplot(aes(x = education, y = compensation_USD, fill = education)) + 
@@ -274,7 +270,9 @@ df_complete %>% ggplot(aes(x = education, y = compensation_USD, fill = education
 
 ```
 
+### Code Experience
 
+This is a nice separator for our field. Cluster one are people with a lot of experience and are paid well for it. Cluster two are, in fact, newcomers to tech. Clusters three and four are similar in terms of compensation and code experience. 
 
 ```{r fig.width=8, fig.height=6}
 df_complete %>% ggplot(aes(x = code_exp_years, y = compensation_USD, fill = code_exp_years)) + 
@@ -286,13 +284,16 @@ df_complete %>% ggplot(aes(x = code_exp_years, y = compensation_USD, fill = code
 
 
 
-```{r fig.width=8, fig.height=6}
-df_complete %>% ggplot(aes(x = Ml_exp_years, y = compensation_USD, fill = Ml_exp_years)) + 
-  geom_boxplot(na.rm = T) + 
-  facet_wrap(~cluster) +
-  theme(axis.text.x = element_text(angle = 45))
-```
+<!-- ```{r fig.width=8, fig.height=6} -->
+<!-- df_complete %>% ggplot(aes(x = Ml_exp_years, y = compensation_USD, fill = Ml_exp_years)) +  -->
+<!--   geom_boxplot(na.rm = T) +  -->
+<!--   facet_wrap(~cluster) + -->
+<!--   theme(axis.text.x = element_text(angle = 45)) -->
+<!-- ``` -->
 
+### Recommended Lamnguage to Learn
+
+Here the big three; Python, R, SQL dominate the recommendations. These are the core data science programming lanuages. 
 
 ```{r fig.width=8, fig.height=6}
 df_complete %>% ggplot(aes(x = Rec_lang, y = compensation_USD, fill = Rec_lang)) + 
@@ -313,7 +314,7 @@ cluster.category.count.plot<-function(df_basic, df_cat, clusters){
   df<-dummy_cols(.data = df, select_columns = df_names,remove_first_dummy = T, remove_selected_columns = T)
   df<-df[,1:(length(df_names))]
   df_names<-names(df)
-  df %>%
+  df<-df %>%
    select(cluster, df_names) %>%
    mutate_if(is.factor, as.integer) %>%
    pivot_longer(-cluster, names_to = "category_type", values_to = "count") %>%
@@ -323,22 +324,39 @@ cluster.category.count.plot<-function(df_basic, df_cat, clusters){
   geom_col(na.rm = T) +
   facet_wrap(~cluster) +
   theme(axis.text.x = element_text(angle = 45))
+  return(df)
 }
 ```
+
+
+## Primary IDE
+
+Here we see that, save for a few IDE preferences, most cluster of people use in some capacity a variety of IDEs. Or have used them at some point. 
 
 ```{r fig.width=8, fig.height=6}
 cluster.category.count.plot(df_basic, df_ide, five_k$cluster)
 ```
 
+## Primary Language
+
+Again, we see the big three are very popular across all the clusters with Bash in fourth place. 
+
+
 ```{r fig.width=8, fig.height=6}
 cluster.category.count.plot(df_basic, df_lang, five_k$cluster)
 ```
 
+## Big Data Cloud Services
+
+Here cluster one and four are both types of data scientists that use big data service at work and cluster is not. AWS Redshift, Databricks, and Google BigQuery seem to be the favorites - they are all structured data servers, which makes sense given the primacy of SQL. 
 
 ```{r fig.width=8, fig.height=6}
 cluster.category.count.plot(df_basic, df_big_data, five_k$cluster)
 ```
 
+## Cloud Machine Learning
+
+Again, clusters one and four use cloud based ML services. Interestingly, AWS Sagemaker is the clear favorite for those clusters. A good technology to learn. 
 
 ```{r fig.width=8, fig.height=6}
 cluster.category.count.plot(df_basic, df_cloud_ml, five_k$cluster)
