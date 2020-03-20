@@ -1,0 +1,50 @@
+---
+title: "Kaggle Part 2"
+author: "Angel Claudio"
+date: "3/19/2020"
+output: html_document
+---
+
+# Kaggle DS survery 2019 - PART TWO
+
+## R LIBRARY SETUP
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(odbc)
+library(DBI)
+```
+
+## Open Connection to Database
+
+```{r db-authenticate, echo=T, message=F, Warning=F, eval=T}
+conn <- dbConnect(odbc(),
+                  Driver = "SQL Server",
+                  Server = "spsangelclaudio.database.windows.net",
+                  Database = "DataScienceValue",
+                  UID = "spsadmin",
+                  PWD = "noneYA")
+```
+
+## Get View Object for Use
+
+```{r}
+#kaggle_data <- tbl(conn, "uvwParticipantData")
+kaggle_data <- dbGetQuery(conn, 'Select * from uvwParticipantData')
+```
+
+## Analysis Section Below
+
+```{r}
+kaggle_data %>% ggplot() + geom_bar(aes(x=Age),fill="lightblue")
+```
+
+```{r}
+kaggle_data %>%
+  filter(Country=="United States of America" & Salary != "NA") %>%
+  ggplot() +
+  geom_bar(aes(x = Salary),fill="lightblue") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
