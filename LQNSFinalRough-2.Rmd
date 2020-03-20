@@ -1,0 +1,522 @@
+---
+title: "Web Scraping Data - Rough Draft"
+author: "Layla Quinones & Neil Shah"
+date: "3/14/2020"
+output: rmdformats::material
+number_sections: yes
+---
+
+```{r setup, include=FALSE, warning = FALSE, hide = TRUE}
+library(rvest)
+library(stringi)
+library(tidyverse)
+library(RCurl)
+library(RColorBrewer)
+library(xml2)
+library(kableExtra)
+library(Stack)
+library(gtrendsR)
+library(ggplot2)
+library(reshape2)
+library(stringr)
+library(cowplot)
+```
+
+# Part 1: Introduction to Preliminary Research {.tabset}
+
+During our initial research we set out to answer: **What data science skills and tools are currently used in the profession?** 
+
+We began by first scraping the web for any information we can find about skills data scientists want/need to do their jobs. Amoung the many sources found, the following helped us identify key skills, platforms and programming languages that are gaining popularity within the Data Science community. You can access the rmd file with ALL the research found at this stage [HERE](https://raw.githubusercontent.com/Shampjeff/data_607_project3/master/scrapingPractice.Rmd)
+
+## Core DS Skills
+
+In a study published on [KD Nuggets](https://www.kdnuggets.com/2019/09/core-hot-data-science-skills.html), a group of 1500 Data Scientists were asked the following questions:
+
+1. Which skills / knowledge areas do you currently have (at the level you can use in work or research)?
+
+2. Which skills do you want to add or improve?
+
+The data from this poll was seperated into 3 seperate tables. The steps outlined below illustrate the process of scraping the web page for specific tables, stacking the tables and tidying the data so that it can be visualized. 
+
+```{r, warning = FALSE}
+#KD Nuggets website with tables
+urlTen <- "https://www.kdnuggets.com/2019/09/core-hot-data-science-skills.html"
+
+#Parse the html file
+urlTen <- read_html(urlTen)
+
+#Reads the tables in the html page and places them in a list
+KdTables <- html_nodes(urlTen, "table") %>%
+  html_table(fill = TRUE)
+
+#Select each table and add a column with category name (for plotting purposes)
+kdTableOne <- KdTables[[1]] %>% mutate(Type = as.factor("Established Skills"))
+kdTableTwo <- KdTables[[2]] %>% mutate(Type = as.factor("New Skills"))
+kdTableThree <- KdTables[[3]] %>% mutate(Type = as.factor("Other"))
+
+#Stack the Data Frames into one
+combinedKdTable <- Stack(kdTableOne, kdTableTwo)
+combinedKdTable <- Stack(combinedKdTable, kdTableThree)
+
+#Rename Columns
+combinedKdTable <- rename(combinedKdTable, "want" = "%Want", "have" = "%Have","wantHaveRatio" ="%Want/%Have") %>% gather("Category", "Percent", "have":"wantHaveRatio")
+
+#Take away % and cast to numeric for plotting
+combinedKdTable$Percent <- as.numeric(unlist(str_remove_all(combinedKdTable$Percent, "\\%")))
+
+#Put back into wide format for plotting
+combinedKdTable<- spread(combinedKdTable, Category, Percent) %>% select(Skill, want,have, Type)
+```
+
+As a result the following table and plot was generated.
+
+```{r, warning =FALSE}
+#Display Table
+kable(combinedKdTable[1:3]) %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "200px")
+
+#plotting have vs want
+ggplot(combinedKdTable, aes(x=have, y=want, color = Type)) +
+  scale_color_brewer(palette="Dark2") +
+  labs(y = "Percent Want", x ="Percent Have", title = "Skills Data Scientists Want vs Have (Clustering)") +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  geom_label(label=combinedKdTable$Skill, nudge_x = 0.25, nudge_y = 0.25, check_overlap = T)
+  
+```
+
+Here we can see clearly that the skills identified in this survey falls into three categories: skills that are well established that have a high percentage of respondants that have them and a low percentage of respondants who want them(green); skills that are in high demand with a high percentage of respondents reporting they want that skill and do not have them(orange); and skills that very few people want and very few people have (purple). These groupings functioned as a basis for the Google Trends Search we will be conducting in the next section.
+
+## Core DS Software
+
+In a study published on [KD Nuggets](https://www.kdnuggets.com/2019/05/poll-top-data-science-machine-learning-platforms.html)
+1,800 participants were asked to identify their favorite platforms for Analytics, Data Science and Machine Learning Software in 2019 - 2017. Data was processed and presented in percent of voters.
+
+The data from this poll was seperated into 6 seperate tables. The steps outlined below illustrate the process of scraping the web page for specific tables of  interest and visualizing them using bar plots and a line plot to illustrate trends over time.
+
+### Top Analytics/DS/ML Software in 2019 - 2017
+
+To gain some insight into the growth in demand for various software platforms, we decided to look at trends in poll responses from 2017 - 2019 by visualizing the poll data in a line graph. 
+
+```{r, warning = FALSE}
+#Webpage with Data 
+urlEleven <- "https://www.kdnuggets.com/2019/05/poll-top-data-science-machine-learning-platforms.html"
+#Parse html page
+urlEleven <- read_html(urlEleven)
+
+#Reads the tables in the html page
+kdTableFour <- html_nodes(urlEleven, "table") %>%
+  html_table(fill = TRUE)
+
+#1st Table on the page
+topSF <- kdTableFour[[1]]
+
+#Change Column Names
+topSF <- rename(topSF, "2019" = "2019% share", "2018" = "2018% share","2017" ="2017% share") %>% gather("Year", "Percent", "2019":"2017")
+
+#set numeric types for line plots
+topSF$Percent <- as.numeric(unlist(str_remove_all(topSF$Percent, "\\%")))
+topSF$Year <- as.numeric(topSF$Year)
+
+#Display
+kable(topSF) %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "200px")
+
+#Line Plot
+ggplot(topSF) +
+  geom_line(aes(x=Year, y=Percent, col = Software)) +
+  labs(title= "Top Data Science Tools", x = "Year", y = "Percent of People Using Tool") +
+  theme(plot.title = element_text(hjust = 0.5)) 
+```
+
+We can see here that Python has been the most popular data science tool all three years. R, althought reletivley popular, we see that it is steadily declining in popularity. RapidMiner's had the highest spike in popularity between 2017 and 2018 but then began to decline from 2018 - 2019. Tools such as SQL, Tableau Excel also seem to be decreaing in popularity. Software such as Tensorflow, Anaconda and Keras are increaing in use steadily through this time range.
+
+### Data Science Software with Largest Decrease in Usage
+
+If we take a closer look at the difference between percent of responses in 2018 and 2019 we can gain some insight into tools that may be loosing popularity in the Data Science community (and being replaced).
+
+```{r}
+#Select Table 3
+declineUse <- kdTableFour[[3]]
+
+#Clean Up the table for analysis
+declineUse <- rename(declineUse, "2019" = "2019% share", "2018" = "2018% share","change" ="% change") %>% gather("Year", "Percent", "2019":"change")
+
+#Data Types and Filter
+declineUse$Percent <- as.numeric(unlist(str_remove_all(declineUse$Percent, "\\%")))
+declineUse <- filter(declineUse, Year == "change")
+
+#Display % change
+kable(declineUse) %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "200px")
+
+#Visualization
+ggplot(declineUse, aes(y=Percent, x=reorder(Platform,Percent))) +
+  geom_col(fill = "blue") +
+  labs(y = "Percent Decline", x ="Data Science Tools", title = "Software With Largest Decrease in Use (2018 - 2019)") +
+   theme(plot.title = element_text(hjust = 0.5)) +
+  coord_flip() 
+```
+
+From here we see that several IBM Software are declining in popularity along with other including Microsoft Machine Learning Server. 
+
+### Deep Learning Platform Trends
+
+Along with our goal to analyze tools that are increasing and decreasing popularity we can also take a look at the deep learning platforms identified by data scientists in this poll.
+
+```{r}
+# Table 4
+dlPlat <- kdTableFour[[4]]
+
+#Rows names and long format
+dlPlat <- rename(dlPlat, "2019" = "2019% share", "2018" = "2018% share","change" ="% change") %>% gather("Year", "Percent", "2019":"change")
+
+#Clean data
+dlPlat$Percent <- as.numeric(unlist(str_remove_all(dlPlat$Percent, "\\%")))
+dlPlat <- filter(dlPlat, dlPlat$Year == "change")
+
+#Display
+kable(dlPlat) %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "200px")
+
+#Visualization
+ggplot(dlPlat, aes(y=Percent, x=reorder(Platform,Percent))) +
+  geom_col(fill = "lightgreen") +
+  labs(y = "Percent Change", x ="Data Science Tools", title = "Deep Learning Platforms Trends (2018 - 2019)") +
+   theme(plot.title = element_text(hjust = 0.5)) +
+  coord_flip() 
+```
+
+We can see that Pytorch is gaining popularity at a high rate over 2018 - 2019 whereas tools such as Thenao, Caffe, and Microsoft Cognitive Toolkit is decreasing in popularity.
+
+## Programming Languages
+
+Lastly, we were interested in looking at trends in programming languages through 2018-2019 to gain some insight into languages that may be gaining or losing popularity in data science.
+
+```{r}
+progLang <- kdTableFour[[6]]
+kable(progLang) %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "200px")
+
+#Clean Up the table for analysis
+progLang <- rename(progLang, "2019" = "2019% share", "2018" = "2018% share","change" ="% change") %>% gather("Year", "Percent", "2019":"change")
+
+progLang$Percent <- as.numeric(unlist(str_remove_all(progLang$Percent, "\\%")))
+
+progLang <- filter(progLang, Year == "change") %>% drop_na()
+
+#Visualization of Want and Have
+ggplot(progLang, aes(y=Percent, x=reorder(Platform,Percent))) +
+  geom_col(fill = "pink") +
+  labs(y = "Percent Change", x ="Programming Platforms", title = "Programming Platform Trends (2018 - 2019)") +
+   theme(plot.title = element_text(hjust = 0.5)) +
+  coord_flip() 
+```
+
+Interestingly enough, Julia has the highest percent positive change (increasing popularity) while Scala has the highest percent negative change (decreasing popularity). Python seems to be maintaining it's popularity with the lowest percent change in any direction. I think that its interesting that C/C++ saw a n increase positive change. I wonder what thats about. 
+
+# Part 2: Google Trend Analysis {.tabset}
+
+The KD Nuggets data set provided insight into the evolving trends from 2017-2019 among skills desired for data scientists. Another way to look at ebbs and flow of skill popularity is through the use of Google Trends. Google, the world's most heavily used search engine, tracks the frequency of a search term, and provides normalized time series for comparison. Using Google Trends is not a new concept and there is an abundant [literature](https://www.sciencedirect.com/science/article/pii/S0020025516300846) on how it can serve as a proxy for popularity, and precursor for predictions.  
+
+## Intro to gTrendsR
+
+While there is an easy to use Google Trends webpage, there is also a R based package called GtrendsR that provides functionality. GtrendsR accepts a keyword (or keyword vectors), geographical location, cookie parameters, language and time dimension as parameters--the full documentation can be found [here](https://cran.r-project.org/web/packages/gtrendsR/gtrendsR.pdf).
+
+For example--the following call (just the head for brevity) specified the key word "Python programming language" for the US region for a 5 year frame.
+
+```{r}
+output <- head(gtrends(keyword = 'Python programming language',
+         geo = "US",
+        time = "today+5-y")) 
+names(output)
+```
+
+
+The resultant is a list of dataframes, with categories of interest by time, country, region, demogrpahics, city and related topic. To standardize results we will restrict our search to the "US" and focus on hits, or interest over time. 
+
+```{r}
+head(output$interest_over_time)
+```
+
+The interest_over_time provides a hit score time-series for the search phrase which is normalized/scaled from 0-100 in terms of popularity. 
+
+For example--for "Python Programming Language" over a 5 year time frame. 
+
+Google normalizes all keyword popularity from a 0-100 scale and hence direct comparisons can be made. 
+
+```{r}
+ggplot(data=output$interest_over_time)+geom_line(aes(y=hits,x=date))+ggtitle('Python Programming Language Hits over Time')
+
+```
+
+
+## Keyword Selection
+
+We'll be making a direct comparison with the KDnuggets Top Data Science Tools list from the previous section, and compare the evolution in trends over the same time scale, from 2017-2019. 
+
+The following code block loops through a list of keywords and populates a dataframe with hits. This general frame work will be used when looking at other keywords.
+
+```{r}
+#Using the kaggle Top Software data set and making a timerange to fit
+keywords <- sort(unique(topSF$Software))
+timerange <-"2017-01-01 2019-01-01"
+```
+
+To automate things we made a function called googletrends. 
+
+```{r}
+googletrends <-function(keywords)
+{ 
+timerange <-"2017-01-01 2019-01-01"  
+#generating a Date vector 
+date<-select((gtrends(keyword = keywords[1],
+                   geo = "US",
+                   time = timerange)$interest_over_time),date)
+data <-vector(mode = "list", length = length(keywords))
+n <-1
+for (i in keywords)
+{
+  print(n)
+  print(i)
+  data[[n]]<-select((gtrends(keyword = i,
+                  geo = "US",
+                  time = timerange)$interest_over_time),hits)
+  n<-n+1
+}
+#Making Data Frame
+df <- data.frame(data)
+colnames(df) <-keywords
+df<-cbind(date,df)
+}
+```
+
+Now running our code
+```{r}
+df <-googletrends(keywords)
+```
+
+## Initial Analysis
+
+First--let's look at the summary statistics and a boxplot to visualize our keywords.
+
+```{r}
+summary(df)
+```
+
+
+```{r}
+par(las=2)
+boxplot(df[2:length(df)],main='Google Trends for Top Data Science Tools')
+```
+
+Keep in mind this is averaged over the entire time range [2017-2019] but there are a few metrics we can look at.
+
+1. Median/mean which would just tell us overall how popular a term was searched.
+2. The spread via inner quartile range or whisker would be an indication of consistency within the time frame--a large/wide spread (relative) would indicate that a keyword hit had more variability, and changed over the time frame. Once again since this is taken across the entire time-frame, we don't know the overall direction in popularity.
+
+
+Based on the boxplot and statistics we can see:
+
+1. Excel has the highest median [87] and combined with the most narrow spread indicating that it still dominates Google searches--which makes sense given it's ubiquity and age.
+2. Looking at the big Programming languages--Python was the most popular, followed by R and then SQL  [83,75,64 respectively] with the same trend in decreasing spreads--**this matches with KdNuggets about Python's popularity among the big 3**
+3. RapidMiner has the largest variability indicating that it rapidly changed popualarity in time--once again **agreeing with KDnuggets** Scikit, Keras and Apache Spark also have the next largest spreads indidcating variability (once again we don't know which direction).
+4. Anaconda tied with Python for 2nd highest median--this makes sense due to it's strong correlation with Python (it's the go to package)
+
+## Trend change in time 
+
+Now the entire point of Google Trends was to view this evolution over time--so let's plot it!
+
+```{r}
+tidydf <- melt(df, 'date')
+names(tidydf) <-c('date','Software','Hits')
+ggplot(tidydf, aes(x=date, y=Hits, color=Software)) + geom_line()+ xlab('Time')+ylab('Hits')+ggtitle('Google Trends for Top Data Science Tools')
+```
+
+No suprise this is a bit noisy due to the high amount of samples.
+
+One common technque when dealing with noisy data is to smooth it out via some sort of moving average--for simplicity we'll employ geo_smooth() which uses a [LOESS](https://en.wikipedia.org/wiki/Local_regression), which is a combination of moving average and regression, to fit the data. This does change the statistics for the data but should keep trends similar.   
+
+
+```{r}
+ggplot(tidydf, aes(x=date, y=Hits, color=Software)) + geom_smooth(se=FALSE)+ xlab('Time')+ylab('Hits')+ggtitle('Google Trends for Top Data Science Tools')
+```
+
+This is much easier to read--and we can now see how the skills changed in popularity over time!
+
+I'm going to first break this plot down to compare the big languages, Excel, R, SQL and Python. 
+
+```{r}
+df %>% select(c(names(df)[1],names(df)[4],names(df)[6],names(df)[7],names(df[10])))  %>% melt('date') %>% ggplot(aes(x=date, y=value, color=variable)) + geom_smooth(se=FALSE)+ xlab('Time')+ylab('Hits')+ggtitle('Google Trends for Programming Languages')
+```
+
+Interesting enough
+
+1. While Excel started out the most popular language--it waned over time! R and SQL followed a similar trend in decreased popularity, with R and then SQL ending up with less searches.
+
+2. Only Python actually became more popular/searched over time--which aligns with our **KDnugget** data. 
+
+3. There was some 2018 bump that happened for all languages--noticable around the beginning of 2018 and then midway through. 
+
+From the Google Trends data we can conclude that Python is indeed the more popular language, and has taken away buzz from legacy languages like Excel, SQL and R. 
+
+Overall 2019 popularity trend in descending order: **Python, Excel, R and finally SQL** 
+
+
+Now looking at the other variables 
+
+```{r}
+df %>% select(c(names(df)[1],names(df)[2],names(df)[3],names(df)[5],names(df)[8],names(df)[9],names(df)[11],names(df)[12]))  %>% melt('date') %>% ggplot(aes(x=date, y=value, color=variable)) + geom_smooth(se=FALSE)+ xlab('Time')+ylab('Hits')+ggtitle('Google Trends for Programming Languages')
+```
+
+Here we can see that
+
+1. Apache Spark, Tensor flow, Keras actually had the widest variability--with Apache Spark losing popularity overall, while the other two ending up with higher popularity. RapidMinr did not have variability despite the previous data data set showing it--I attribute that to random one off outliers. It actually lost popularity over time
+
+2. It seems that nearly all skills had a "peak" around 2018 and then waned in popuarity after. 
+
+3.Tableu and Anaconda had similar trends--gaining popularity in early 2017-2018 but then returning back to their hit rate in 2019.
+
+**Overall in terms of popularity at the end of our time frame (start of 2019): Keras, Tabeleau, TensorFlow, Anaconda, Apache, Scikit and Rapidminr**
+
+This is a bit suprising since at first one would think niche or specialized subset skills, like Keras or Scikit would naturally have lower popularity, but this analysis shows that this isn't always the case!
+
+
+## Side by Side Comparison
+
+Now we can do a side by side comparison to compare KDnuggets versus GTrends to see if there in consensus between the two data sets.
+
+```{r}
+gtrend <-ggplot(tidydf, aes(x=date, y=Hits, color=Software)) + geom_smooth(se=FALSE)+ xlab('Time')+ylab('Hits')+ggtitle('Google Trends for Top Data Science Tools')
+
+kdnugget <-ggplot(topSF) +
+  geom_line(aes(x=Year, y=Percent, col = Software)) +
+  labs(title= "Top Data Science Tools", x = "Year", y = "Percent of People Using Tool") +
+  theme(plot.title = element_text(hjust = 0.5)) 
+
+plot_grid(gtrend, kdnugget)
+
+```
+
+
+1. Python exhibited the same trend in both data sets--it was the most overall popular and gained popularity.
+2. Both data sets reflected decreasing popularity within Excel, SQL and R. 
+3. Both data sets reflected a sharp bump in 2018 and in many cases peak interest/hit.
+4. Both data sets reflected decreasing popularity of Apache Spark--but Gtrends showed a sharp decline.
+5. Both data sets refleced increasing popualarity in Anaconda, TensorFlow, Keras, and Scikit--though the magnitudes were more in Gtrends.
+6. A key difference is RapidMinr--while KDnuggets had it increasingly growing popularity, Gtrends did not reflect.
+
+**Overall most of the Gtrends and KdNuggets had a similar trend and direction among the key Data Science Tools used and Gtrends**
+
+
+## Comparison with Deep Learning Platforms Trends
+
+Using a the same methodology above we generate Gtrend data for the keywords within the KD Nuggets Software Dataset.
+
+One caveat: I had to change Other Deep Learning Tools to Deep Learning Tools due to lack of hits. 
+
+```{r}
+keywords <-sort(unique(dlPlat$Platform))
+keywords[6] <- "Deep Learning Tools"
+df <-googletrends(keywords)
+```
+
+The KDnuggets survey was taken at a single point in time and thus we will apply this to Gtrends by taking two data points. This time we want to compare the change from 2019 and 2018 (given these are our survey data points). Making use of symmetry in our dataframe lenght--that is 2018 will be the midpoint of the dataframe. We can simply make a new vector with the percent change.
+
+```{r}
+nrow(df)
+Change <-((df[105,2:length(df)]-df[53,2:length(df)])/df[105,2:length(df)])*100
+
+#Making a function replace NaN
+
+is.nan.data.frame <- function(x)
+do.call(cbind, lapply(x, is.nan))
+
+# Dropping NaN with 0s
+Change[is.nan(Change)] <- 0
+#Converting to datframe and adding Platform for mapping
+Change <-data.frame(t(Change))
+Change$Platform <-keywords
+```
+
+Now plotting in the same matter as the KD Nuggets
+```{r}
+Changeplot <- ggplot(Change,aes(y=X105,x=reorder(Platform, X105)))+geom_col(fill = "lightgreen") +
+   labs(y = "Percent Change", x ="Data Science Tools", title = "Deep Learning Platforms Trends (2018 - 2019)") +
+    theme(plot.title = element_text(hjust = 0.5)) +
+   coord_flip()
+
+#The KdNuggets Plot
+KDChangePlot <-ggplot(dlPlat, aes(y=Percent, x=reorder(Platform,Percent))) +
+  geom_col(fill = "lightgreen") +
+  labs(y = "Percent Change", x ="Data Science Tools", title = "Deep Learning Platforms Trends (2018 - 2019)") +
+   theme(plot.title = element_text(hjust = 0.5)) +
+  coord_flip() 
+
+plot_grid(KDChangePlot, Changeplot)
+```
+
+Comparing Trends
+
+1. Only Pytorch and TFlearn had the same directions in both data sets--specifically Pytorch having the largest and positive magnitude increase. TFlearn popularity decreased in both data sets however in Gtrends it had the largest magnitude percent change.
+
+2. Interesting enough all other Deep Learning Platform trends had the opposite trends between KDNuggets and Google Trends--some like Theano (negative in KDnuggets and positive in Gtrends) were significantly different. 
+
+3. Apache, Microsoft Cognitive Toolkit and Deep Learning tools registered no change in Gtrends but specifically they had no hits.
+
+4. Looking at Keras and Torch--they had the opposite directions between our data sets but by a small magnitude--keeping in mind our data comparsion was just two points, this could of been just due to sampling fluctuations. 
+
+Overall the main conclusion that we can draw is that **Pytorch and TFlearn** were consistent between both datasets, that Pytorch is increasingly popular while TFlearn isn't.
+
+## Comparison with Program Platform Trends
+
+Using the same methodology for the Program Platform Trends--and modifying "Unix Shell" and "Other Programming Languages" for Google Trends sanity.
+
+```{r}
+keywords <-unique(progLang$Platform)
+keywords[5] <- 'Unix Shell'
+keywords[7] <- "Other Programming Languages"
+df <-googletrends(keywords)
+head(df)
+Change <-((df[105,2:length(df)]-df[53,2:length(df)])/df[105,2:length(df)])*100
+Change[is.nan(Change)] <- 0
+Change <-data.frame(t(Change))
+Change$Platform <-keywords
+```
+
+And plotting again
+
+```{r}
+Changeplot <- ggplot(Change,aes(y=X105,x=reorder(Platform, X105)))+
+  geom_col(fill = "pink") +
+  labs(y = "Percent Change", x ="Programming Platforms", title = "Programming Platform Trends (2018 - 2019)") +
+    theme(plot.title = element_text(hjust = 0.5)) +
+   coord_flip()
+   
+KDChangePlot <-ggplot(progLang, aes(y=Percent, x=reorder(Platform,Percent))) +
+  geom_col(fill = "pink") +
+  labs(y = "Percent Change", x ="Programming Platforms", title = "Programming Platform Trends (2018 - 2019)") +
+   theme(plot.title = element_text(hjust = 0.5)) +
+  coord_flip()
+plot_grid(KDChangePlot, Changeplot)
+```
+
+Comparing the two data set reveals stark contrast!
+
+1. Julia was the most positive in percent change on both data sets, however the Google Trends magnitude was much lower.
+
+2. In fact other than Python and Other Programming Languges--all Programming platforms had negative percent change in Google Trends. C/C++ had the most decrease in Google Trends despite it being slightly positive in KD Nuggets
+
+3.Lisp and Perl had opposite trends between KDNuggets (being slightly positive change) versus negative in Google Trends.
+
+Looking at the correlated data we can conclude
+
+1. Julia is indeed the popular emergy programming platform, being positive in both datasets.
+
+2. Unix, Java, SQL and Scala have lost popularity over time.
+
+
