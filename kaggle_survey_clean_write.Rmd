@@ -299,6 +299,29 @@ kaggle_ref <- Id(schema = "Kaggle", table = "Participant")
 dbWriteTable(conn, name = kaggle_ref, value = df_basic, append = T)
 ```
 
+## Create Artifact Tables of the Case Surveys
+
+Finally our last task is to create artifact tables of genre specific surveys that were extracted from the wide table. Using these specific files may help us draw analysis from different features to aid in discovery of valuable information.
+
+```{r artifact-writes, eval=F}
+dbWriteTable(conn, name = "df_prime_tool",value = df_prime_tool)
+dbWriteTable(conn, name = "df_ml_xp",value = df_ml_xp)
+dbWriteTable(conn, name = "df_lang_rec",value = df_lang_rec)
+dbWriteTable(conn, name = "df_media",value = df_media)
+dbWriteTable(conn, name = "df_online_ed",value = df_online_ed)
+dbWriteTable(conn, name = "df_ide",value = df_ide)
+dbWriteTable(conn, name = "df_lang",value = df_lang)
+dbWriteTable(conn, name = "df_viz",value = df_viz)
+dbWriteTable(conn, name = "df_ml_algo",value = df_ml_algo)
+dbWriteTable(conn, name = "df_ml_tool",value = df_ml_tool)
+dbWriteTable(conn, name = "df_cv",value = df_cv)
+dbWriteTable(conn, name = "df_nlp",value = df_nlp)
+dbWriteTable(conn, name = "df_cloud",value = df_cloud)
+dbWriteTable(conn, name = "df_cloud_prod",value = df_cloud_prod)
+dbWriteTable(conn, name = "df_big_data",value = df_big_data)
+dbWriteTable(conn, name = "df_cloud_ml",value = df_cloud_ml)
+dbWriteTable(conn, name = "df_db",value = df_db)
+```
 
 
 
