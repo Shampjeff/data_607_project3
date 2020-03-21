@@ -1,0 +1,295 @@
+---
+title: "Kmeans Analysis for Kaggle Data Science Survey 2019"
+author: "Pivot_longer(faster, better)"
+date: "`r Sys.Date()`"
+output:
+  prettydoc::html_pretty:
+    theme: architect
+    highlight: vignette
+---
+
+```{r, include=FALSE}
+library(tidyr)
+library(dplyr)
+library(dbplyr)
+library(ggplot2)
+library(RMySQL)
+library(stringr)
+library(fastDummies)
+library(DBI)
+```
+
+# Kaggle Data Science Survey - Cluster Analysis - K Means. 
+
+Our approach for this data set is quantify the top data science skills using salary of employed data scientists. This survey published by Kaggle gathers information about data scientists, the technologies and languages they use as well as salary and demographics. 
+
+We will try to find the optimum number of clusters that represent the types of people who are in the Data Science Field and discuss differences and commonalities in skills and experience as lens to the most valuable data science skills. 
+
+## Business Use Case
+
+Knowing the type of data science that are most valuable are going to be the skills that employers want when building and improving a data science team. To that end, we will use the traits of the clusters to understand what types of skills and experience levels will build the most well-rounded team.  
+
+## Pull In Data From The Cloud
+
+Everything is loaded on to a SQL server in the cloud
+
+See `kmeans_kaggle.rmd` for upload code. 
+
+```{r db-authenticate, echo=T, message=F, Warning=F, eval=F}
+conn <-                 # Create a connection to your SQL server
+    dbConnect(
+      MySQL(),
+      username = "root",
+      password = rstudioapi::askForPassword("Database password"),
+      # For rmd on github use: rstudioapi
+      # For knitting use password$pwd
+      host = '34.68.193.229'
+    )
+dbSendQuery(conn, "USE Kaggle_DS_survey;")  
+
+```
+
+We need to bring in the full dataset and convert it into categorical dummy variables. 
+
+```{r}
+df_complete <- as.data.frame(tbl(conn, "df_complete"))
+df_complete_cat<-df_complete %>% select(!row_names)
+df_complete_cat<-dummy_cols(df_complete_cat, remove_first_dummy = T)
+
+df_complete_cat<-df_complete_cat[ ,(ncol(df_complete)+1):ncol(df_complete_cat)]
+df_complete_cat[is.na(df_complete_cat)]<--1
+```
+
+
+### K Means Clustering
+
+Running the algorthim 100 times and averaging the results. 
+
+
+```{r, warning=FALSE}
+run_kmean <- TRUE
+if (run_kmean == TRUE){
+set.seed(9450)
+k_range<-2:30
+trials <-100                   # Run K Means 100 times to average 
+avg_tot_wss <-integer(length(k_range)) 
+for(v in k_range){ 
+ vec_tot_wss <-integer(trials) 
+ for(i in 1:trials){
+  k_tmp <-kmeans(df_complete_cat,centers=v)          # Run kmeans
+  vec_tot_wss[i] <-k_tmp$tot.withinss
+ }
+ avg_tot_wss[v-1] <-mean(vec_tot_wss)    # Average total withinss
+}
+}
+plot(k_range,avg_tot_wss,type="b", main="Total Within SS by Various K",
+ ylab="Average Total Within Sum of Squares",
+ xlab="Value of K")
+```
+
+Four clusters seems to be a good fit. I explored a few other options, but three seems like meaningful number of groups for this data. 
+
+Below we assign the cluster number to the complete dataframe of all questions. 
+
+```{r}
+# Assign the cluster values
+five_k<-kmeans(df_complete_cat,centers=4)
+df_complete$cluster<- as.factor(five_k$cluster)
+```
+
+## K Means Clusters and Data Science Skills
+
+We have four groups and they are demonstrate how this field is varied in skills, technologies, and people claiming the title. 
+
+### Age and Compensation
+
+Below is a plot of the spread of the compensation by age range for each cluster. 
+
+Clusters 3 and 4 appear to be similar for these categories where as cluster one and two appear distinict. Cluster two appears to be newcomers to data science with little experience and salary. 
+
+```{r fig.width=8, fig.height=6}
+df_complete %>% ggplot(aes(x = age, y = compensation_USD, fill = age)) +
+  geom_boxplot(na.rm = T) + 
+  facet_wrap(~cluster) +
+  labs(x = "Age", y = "Salary", title= "Distribution of Salary by Age") +
+  theme(axis.text.x = element_text(angle = 45, size=14))  
+```
+
+### Education and Compensation
+
+Below is compensation vs. education level for each cluster. This is interesting is that in cluster one, the spread is large for people without a degree. Cluster one also had very highly paid people in the 70+ age range, so our data science managers might be in this group. Clusters three and four appear similar in this category, though there are some people in cluster three without a degree. 
+
+
+```{r fig.width=8, fig.height=6}
+df_complete$education<-str_replace_all(
+    df_complete$education, 
+    "Some collegeuniversity study without earning a bachelors", 
+    "No Degree") 
+df_complete %>%
+  ggplot(aes(x = education, 
+             y = compensation_USD, 
+             fill = education)) +
+  geom_boxplot(na.rm = T) +
+  facet_wrap(~cluster) +
+  labs(x = "Education", y = "Salary", title= "Distribution of Salary by Education Level") +
+  theme(axis.text.x = element_text(angle = 45, size=14))
+```
+
+### Code Experience and Compensation
+
+This is a nice separator for our field. Cluster one are people with a lot of experience and are paid well for it. Cluster two are, in fact, newcomers to tech. Clusters three and four are similar in terms of compensation and code experience except for some changes in variance. 
+
+```{r fig.width=8, fig.height=6}
+df_complete %>% ggplot(aes(x = code_exp_years, y = compensation_USD, fill = code_exp_years)) + 
+  geom_boxplot(na.rm = T) + 
+  facet_wrap(~cluster) +
+  labs(x = "Years Experience", y = "Salary", title= "Distribution of Salary by Code Experience") +
+  theme(axis.text.x = element_text(angle = 45, size=14))
+```
+
+
+## Categorical Results
+
+Next we will look at the frequency with which each cluster uses various data science technologies. This work compliments our web scrape data by quantifying the relative use of established and emerging technologies. 
+
+Below is a plot function for the categories. 
+
+```{r}
+# Categorical names changes and cleaning
+rename.func<-function(x){
+    x<-str_remove(x, "[:punct:]\\d")
+    x<-str_remove(x, "\\(.*\\)")
+    x<-str_remove(x, "(.*_)")
+# Shorten long product names
+    x<-str_replace_all(x, 
+                      "Google Cloud", "GCP")
+    x<-str_replace_all(x, 
+                       "Amazon", "AWS")
+    x<-str_replace_all(x,
+                       "Azure Machine Learning", "Azure ML")
+    return(x)
+    }
+
+cluster.category.count.plot<-function(df_basic, df_cat, clusters,shorten){
+  
+  # This function takes a categorical dataframe and joins it to 
+  # the main demographic dataframe and collects the frequency of
+  # each selection. 
+  
+  df<-df_cat %>% select(!row_names) # Remove unneeded columns
+  df<-subset(df, select = -c(None, Other))
+  df_names<-names(df)
+  df<-df_basic %>%
+    select(!row_names) %>%          # Join and change data type
+    inner_join(df, by = "id") %>%
+    filter(country == "United States of America") %>%
+    mutate(cluster = as.factor(clusters)) %>%
+    select(cluster,df_names)
+  df<-dummy_cols(.data = df,        # Convert to "dummy" variable
+                 select_columns = df_names,
+                 remove_first_dummy = T, 
+                 remove_selected_columns = T)
+  df<-df[,1:(length(df_names))]
+  df_names<-names(df)
+
+  df<-df %>%                        # Tidy and prep for plot
+   select(cluster, df_names) %>%
+   mutate_if(is.factor, as.integer) %>%
+   pivot_longer(-cluster, 
+                names_to = "category_type", 
+                values_to = "count") %>%
+   group_by(cluster, category_type) %>%
+   summarise(count = sum(count))
+  
+  df<-as.data.frame(apply(df, 2,
+                          FUN=rename.func)) 
+  
+  df %>%
+    ggplot(aes(x = category_type,   # Plot counts
+               y = count,
+               fill = category_type)) +
+    geom_col(na.rm = T) +
+    facet_wrap(~cluster) +
+    theme(axis.text.x = element_text(angle = 45, 
+                                     size = 14))
+  #return(df)
+}
+```
+
+
+### Primary IDE
+
+Here we see that, save for a few IDE preferences, most clusters of people use in some capacity a variety of IDEs. Or have used them at some point. Cluster three and four heavily use many of these IDEs.
+
+```{r fig.width=8, fig.height=6}
+df_basic<-as.data.frame(tbl(conn, "df_basic"))
+df_ide<-as.data.frame(tbl(conn, "df_ide"))
+cluster.category.count.plot(df_basic, df_ide, five_k$cluster) +
+    labs(x = "IDE", y = "Count", title= "Frequency of IDE Use")
+```
+
+### Primary Language
+
+Here we see the big three; Python, R, SQL are very popular across all the clusters with Bash in fourth place. Our older, more experience cluster, cluster one, has experience in wide variety of languages. Interestingly, clusters three and four separate on the their view of R. 
+
+
+```{r fig.width=8, fig.height=6}
+df_lang<-as.data.frame(tbl(conn, "df_lang"))
+cluster.category.count.plot(df_basic, df_lang, five_k$cluster) + 
+    labs(x = "Languages", y = "Count", title= "Frequency of Language Use")
+
+```
+
+### Big Data Cloud Services
+
+Here cluster one and four are both types of data scientists that use big data service at work and cluster three is not. AWS Redshift, Databricks, and Google BigQuery seem to be the favorites - they are all structured data servers, which makes sense given the primacy of SQL. 
+
+```{r fig.width=8, fig.height=6}
+df_big_data<-as.data.frame(tbl(conn, "df_big_data"))
+cluster.category.count.plot(df_basic, df_big_data, five_k$cluster) +
+    labs(x = "Big Data Product", y = "Count", title= "Frequency of Big Data Use")
+```
+
+### Cloud Machine Learning
+
+Again, clusters one and four use cloud based ML services. Interestingly, AWS Sagemaker is the clear favorite for those clusters. A good technology to learn. 
+
+```{r fig.width=8, fig.height=6}
+df_cloud_ml<-as.data.frame(tbl(conn, "df_cloud_ml"))
+cluster.category.count.plot(df_basic, df_cloud_ml, five_k$cluster)+
+    labs(x = "Cloud Product", y = "Count", title= "Frequency of Cloud Machine Learning Use")
+```
+
+
+### Relational Database
+
+Here we see that having solid skills in the traditional SQL database technologies is extremely helpful. Cluster one, who have been in the business for a while and use newer technologies is adapting cloud-based technology for relational database. This is also true for cluster four
+
+```{r fig.width=8, fig.height=6}
+df_db<-as.data.frame(tbl(conn, "df_db"))
+cluster.category.count.plot(df_basic, df_db, five_k$cluster) +
+    labs(x = "Database Type", y = "Count", title= "Frequency of Relational Database Use")
+
+```
+
+
+# Most Valuable Skills
+
+Let's return the business proposition -  what types of skills make up a good data scientist and good data science teams?
+
+Our clusters give us nice insight in this so let's summarize the cluster types as best we can. Cluster two are novices and well not be covered. 
+
+* **Cluster one:** These are people with a lot experience in the field. They can or have used many types of software including the popular languages and traditional sofeware engineering languages. They are early users of cloud technologies and big data systems. These folks can be older or are managers of teams or divisions at this point. 
+
+* **Cluster three:** These are folks who work in a traditional sense of data science and analysis. They use the standard cannon of the technologies; R, Python, local SQL platforms, and text editors. They like R and seem to not like Jupyter and do not have much experience with cloud or big data systems. 
+
+* **Cluster four:** These folks are similar to cluster three, but with a few key differences. They folks like to use RStudio, but not the R language. They like Jupyter and are ramping up their skills with cloud products and big data systems. These are mid-career people in transistion as they are younger than cluster one but a bit older than cluster three. 
+
+Cloud products and big data systems are highly in-demand as the higher paid people in clusters one and four both have skill sets in these areas. Those clusters also have deeper experience in the field on average. They are also well versed in the traditional technologies and languages for data analysis. I would want them on my team. I would also want a few people, perhaps working under a cluster one or four person, to work with smaller datasets for manipulation, tidying, visualizing, and statisical work. 
+
+
+
+
+
+
+

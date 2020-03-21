@@ -1,5 +1,5 @@
 ---
-title: "Kmeans Analysis for Kaggle Data Science Survey 2019"
+title: "Kaggle Data Science Survey 2019 - Clean and SQL Upload"
 author: "Jeff Shamp"
 date: "`r Sys.Date()`"
 output:
@@ -8,9 +8,13 @@ output:
     highlight: vignette
 ---
 
-# Kaggle DS survery 2019 - K Means Analysis
+# Kaggle Data Science uSrvery 2019 - Clean and Upload to SQL
 
-Our approach for this data set is quantify the top data science skills using salary of employed data scientists. This survey published by Kaggle gathers information about data scientists, the technologies and languages they use as well as salary and demographics. 
+## Appendix
+
+This is additional information for server uploads. The main SQL server upload is published to Rpubs.
+
+Below is the cleaning and organization of the Kaggle Data Science Survey for upload to a SQL server hosted on GCP.
 
 ```{r, include=FALSE}
 library(tidyr)
@@ -20,11 +24,27 @@ library(ggplot2)
 library(RCurl)
 library(RMySQL)
 library(stringr)
-library(ggmosaic)
 library(fastDummies)
+library(DBI)
 ```
 
+Connect to server
 
+```{r db-authenticate, echo=T, message=F, Warning=F, eval=F}
+conn <-                 # Create a connection to your SQL server
+    dbConnect(
+      MySQL(),
+      username = "root",
+      password = rstudioapi::askForPassword("Database password"),
+      # For rmd on github use: rstudioapi
+      # For knitting use password$pwd
+      host = '34.68.193.229'
+    )
+# Create a DB using a SQL query. 
+#dbSendQuery(conn, "CREATE DATABASE Kaggle_DS_survey;")  
+```
+
+Load in original data file
 
 ```{r}
 file<- "Data/multiple_choice_responses.csv"
@@ -64,8 +84,14 @@ df_basic<- df %>%
   mutate(code_exp_years= str_remove_all(code_exp_years, "years")) %>%
   mutate(code_exp_years= str_replace_all(code_exp_years, "I have never written code", "None"))
 df_basic$id <- 1:nrow(df_basic)
-head(df_basic, 10)
+write_table = FALSE
+if (write_table == TRUE){
+ dbSendQuery(conn, "USE Kaggle_DS_survey;")
+ dbWriteTable(conn = conn, name = "df_basic", value = df_basic)
+}
 ```
+
+Renaming function
 
 
 ```{r}
@@ -88,16 +114,22 @@ return(df)
 }
 ```
 
+Clean other tables for upload.
 
 ```{r}
+write_table = FALSE
+
 # Primary Tool for DA at school/work
 df_prime_tool<- df %>% 
   select(Q14 )%>%
   slice(2:dim(df)[1]) %>%
   rename(primary_analysis_tool = Q14)
 df_prime_tool$id <- 1:nrow(df_prime_tool)
-
 df_prime_tool[is.na(df_prime_tool)] <- 0
+if (write_table == TRUE){
+ dbSendQuery(conn, "USE Kaggle_DS_survey;")  
+ dbWriteTable(conn = conn, name = "df_prime_tool", value = df_prime_tool)
+}
 
 # ML year EXP
 df_ml_xp<- df %>% select(Q23) %>%
@@ -106,6 +138,10 @@ df_ml_xp<- df %>% select(Q23) %>%
   mutate(ml_exp_years = str_remove_all(ml_exp_years, "years"))
 df_ml_xp$id <- 1:nrow(df_ml_xp)
 df_ml_xp[is.na(df_ml_xp)] <- 0
+if (write_table == TRUE){
+ dbSendQuery(conn, "USE Kaggle_DS_survey;")  
+ dbWriteTable(conn = conn, name = "df_ml_xp", value = df_ml_xp)
+}
 
 # language to learn first?
 df_lang_rec<- df%>% 
@@ -114,6 +150,10 @@ df_lang_rec<- df%>%
   rename(rec_lang = Q19)
 df_lang_rec$id <- 1:nrow(df_lang_rec)
 df_lang_rec[is.na(df_lang_rec)] <- 0
+if (write_table == TRUE){
+ dbSendQuery(conn, "USE Kaggle_DS_survey;")  
+ dbWriteTable(conn = conn, name = "df_lang_rec", value = df_lang_rec)
+}
 
 #media sources for DS
 df_media<- df %>% select(Q12_Part_1:Q12_Part_12) %>%
@@ -132,53 +172,125 @@ df_media<- df %>% select(Q12_Part_1:Q12_Part_12) %>%
          other = Q12_Part_12)
 df_media$id <- 1:nrow(df_media)
 df_media[is.na(df_media)] <- 0
+if (write_table == TRUE){
+ dbSendQuery(conn, "USE Kaggle_DS_survey;")  
+ dbWriteTable(conn = conn, name = "df_media", value = df_media)
+}
 
 # DS course work including University
 df_online_ed<- df %>% 
   select(Q13_Part_1:Q13_Part_12) 
 df_online_ed<- rename.columns(df_online_ed) 
+if (write_table == TRUE){
+ dbSendQuery(conn, "USE Kaggle_DS_survey;")  
+ dbWriteTable(conn = conn, name = "df_online_ed", value = df_online_ed)
+}
+
 # IDE
 df_ide <- df %>% 
   select(Q16_Part_1:Q16_Part_12) 
 df_ide<-rename.columns(df_ide)
+if (write_table == TRUE){
+ dbSendQuery(conn, "USE Kaggle_DS_survey;")  
+ dbWriteTable(conn = conn, name = "df_ide", value = df_ide)
+}
+
 # language
 df_lang<- df %>%
   select(Q18_Part_1:Q18_Part_12) 
 df_lang<- rename.columns(df_lang)
+if (write_table == TRUE){
+ dbSendQuery(conn, "USE Kaggle_DS_survey;")  
+ dbWriteTable(conn = conn, name = "df_lang", value = df_lang)
+}
+
 # data viz
 df_viz <- df %>% 
   select(Q20_Part_1:Q20_Part_12) 
 df_viz<- rename.columns(df_viz) 
+if (write_table == TRUE){
+ dbSendQuery(conn, "USE Kaggle_DS_survey;")  
+ dbWriteTable(conn = conn, name = "df_viz", value = df_viz)
+}
+
 # ML algo used regualrly
 df_ml_algo<- df %>%select(Q24_Part_1:Q24_Part_12) 
 df_ml_algo<-rename.columns(df_ml_algo)
+if (write_table == TRUE){
+ dbSendQuery(conn, "USE Kaggle_DS_survey;")  
+ dbWriteTable(conn = conn, name = "df_ml_algo", value = df_ml_algo)
+}
+
 # ML Tools (e.g. AutoML)
 df_ml_tool<- df %>% select(Q25_Part_1:Q25_Part_8) 
 df_ml_tool<- rename.columns(df_ml_tool) 
+if (write_table == TRUE){
+ dbSendQuery(conn, "USE Kaggle_DS_survey;")  
+ dbWriteTable(conn = conn, name = "df_ml_tool", value = df_ml_tool)
+}
+
 # CV tools
 df_cv<- df %>% select(Q26_Part_1:Q26_Part_7)
 df_cv<-rename.columns(df_cv)
+if (write_table == TRUE){
+ dbSendQuery(conn, "USE Kaggle_DS_survey;")  
+ dbWriteTable(conn = conn, name = "df_cv", value = df_cv)
+}
+
 # NLP tools
 df_nlp<- df %>% select(Q27_Part_1:Q27_Part_6)
 df_nlp<- rename.columns(df_nlp)
+if (write_table == TRUE){
+ dbSendQuery(conn, "USE Kaggle_DS_survey;")  
+ dbWriteTable(conn = conn, name = "df_nlp", value = df_nlp)
+}
+
 # Cloud platform
 df_cloud<- df %>% select(Q29_Part_1:Q29_Part_12)
 df_cloud<- rename.columns(df_cloud)
+if (write_table == TRUE){
+ dbSendQuery(conn, "USE Kaggle_DS_survey;")  
+ dbWriteTable(conn = conn, name = "df_cloud", value = df_cloud)
+}
+
 # cloud products
 df_cloud_prod<- df %>% select(Q30_Part_1:Q30_Part_12)
 df_cloud_prod<- rename.columns(df_cloud_prod)
+if (write_table == TRUE){
+ dbSendQuery(conn, "USE Kaggle_DS_survey;")  
+ dbWriteTable(conn = conn, name = "df_cloud_prod", value = df_cloud_prod)
+}
+
 # big data platform
 df_big_data<- df %>%select(Q31_Part_1:Q31_Part_12)
 df_big_data<- rename.columns(df_big_data)
+if (write_table == TRUE){
+ dbSendQuery(conn, "USE Kaggle_DS_survey;")  
+ dbWriteTable(conn = conn, name = "df_big_data", value = df_big_data)
+}
+
 # cloud ML (e.g. Sagemaker)
 df_cloud_ml<- df %>% select(Q32_Part_1:Q32_Part_12)
 df_cloud_ml<- rename.columns(df_cloud_ml)
+if (write_table == TRUE){
+ dbSendQuery(conn, "USE Kaggle_DS_survey;")  
+ dbWriteTable(conn = conn, name = "df_cloud_ml", value = df_cloud_ml)
+}
+
 # relational DB
 df_db<- df %>% select(Q34_Part_1:Q34_Part_12)
 df_db<- rename.columns(df_db)
+if (write_table == TRUE){
+ dbSendQuery(conn, "USE Kaggle_DS_survey;")  
+ dbWriteTable(conn = conn, name = "df_db", value = df_db)
+}
+```
 
+```{r}
 df_list <- list(df_ml_xp, df_prime_tool, df_lang_rec,df_media, df_online_ed, df_ide, df_lang, df_viz, df_ml_algo, df_ml_tool, df_cv, df_nlp, df_cloud, df_cloud_prod, df_big_data, df_cloud_ml, df_db)
 ```
+
+Clean and upload for K means analysis. 
 
 ```{r}
 clean_numeric_bins <- function(series){
@@ -190,18 +302,15 @@ clean_numeric_bins <- function(series){
 df_basic$compensation_USD <- clean_numeric_bins(df_basic$compensation_USD)
 ```
 
+Write the dattaframe for K means and send to cloud. 
 
 ```{r}
+write_table=FALSE
 drops <- c("None", "Other","Id")
 df_complete<- do.call("cbind", df_list)
 colnames(df_complete)<- str_to_title(names(df_complete))
 df_complete<- df_complete[,!names(df_complete) %in% drops]
 df_complete$id = 1:nrow(df_complete)
-```
-
-Combining data tables and converting the text based answers into categorical dummy variables for KMeans. 
-
-```{r}
 df_complete<- df_basic %>%
                 inner_join(df_complete, by="id")
 
@@ -209,171 +318,26 @@ df_complete<-df_complete %>%
                 filter(country == "United States of America") %>%
                 select(!country & !id)
 
-df_complete_cat<-dummy_cols(df_complete, remove_first_dummy = T)
+if (write_table == TRUE){
+ dbSendQuery(conn, "USE Kaggle_DS_survey;")  
+ dbWriteTable(conn = conn, name = "df_complete", value = df_complete)
+}
+
+```
+
+Combining data tables and converting the text based answers into categorical dummy variables for KMeans. 
+
+
+```{r}
+df_complete_cat<-df_complete %>% select(!row_names)
+df_complete_cat<-dummy_cols(df_complete_cat, remove_first_dummy = T)
 
 df_complete_cat<-df_complete_cat[ ,(ncol(df_complete)+1):ncol(df_complete_cat)]
 df_complete_cat[is.na(df_complete_cat)]<--1
 ```
 
-K Means algorthim - Running the algorthim 100 times and averaging the results. 
 
-```{r, warning=FALSE}
-run_kmean <- FALSE
-if (run_kmean == TRUE){
-set.seed(9450)
-k_range<-2:30
-trials <-100                   # Run K Means 100 times to average 
-avg_tot_wss <-integer(length(k_range)) 
-for(v in k_range){ 
- vec_tot_wss <-integer(trials) 
- for(i in 1:trials){
-  k_tmp <-kmeans(df_complete_cat,centers=v)          # Run kmeans
-  vec_tot_wss[i] <-k_tmp$tot.withinss
- }
- avg_tot_wss[v-1] <-mean(vec_tot_wss)    # Average total withinss
-}
-}
-plot(k_range,avg_tot_wss,type="b", main="Total Within SS by Various K",
- ylab="Average Total Within Sum of Squares",
- xlab="Value of K")
-```
-
-Four clusters seems to be a good fit. I explored a few other options, but three seems like meaningful number of groups for this data. 
-
-```{r}
-# Assign the cluster values
-five_k<-kmeans(df_complete_cat,centers=4)
-df_complete$cluster<- as.factor(five_k$cluster)
-```
-
-## K Means Clusters and Data Science Skills
-
-We have four groups and they are demonstrate how this field is varied in skills, technologies, and people claiming the title. 
-
-Below is a plot of the spread of the compensation by age range for each cluster. 
-
-Clusters 3 and 4 appear to be similar for these categories where as cluster one and two appear distinict. Cluster two appeasrs to be newcomers to data science. 
-
-```{r fig.width=8, fig.height=6}
-df_complete %>% ggplot(aes(x = age, y = compensation_USD, fill = age)) +
-  geom_boxplot(na.rm = T) + 
-  facet_wrap(~cluster)
-```
-
-Below is compensation vs. education level for each cluster. That is interesting is that in cluster one, the spread is large for people without a degree. Cluster one also had very highly paid people in the 70+ age range, so our data science managers might be in this group. Clusters three and four appeat similar in this category. 
-
-```{r fig.width=8, fig.height=6}
-df_complete %>% ggplot(aes(x = education, y = compensation_USD, fill = education)) + 
-  geom_boxplot(na.rm = T) + 
-  facet_wrap(~cluster) +
-  theme(axis.text.x = element_text(angle = 45))
-
-```
-
-### Code Experience
-
-This is a nice separator for our field. Cluster one are people with a lot of experience and are paid well for it. Cluster two are, in fact, newcomers to tech. Clusters three and four are similar in terms of compensation and code experience. 
-
-```{r fig.width=8, fig.height=6}
-df_complete %>% ggplot(aes(x = code_exp_years, y = compensation_USD, fill = code_exp_years)) + 
-  geom_boxplot(na.rm = T) + 
-  facet_wrap(~cluster) +
-  theme(axis.text.x = element_text(angle = 45))
-```
-
-
-
-
-<!-- ```{r fig.width=8, fig.height=6} -->
-<!-- df_complete %>% ggplot(aes(x = Ml_exp_years, y = compensation_USD, fill = Ml_exp_years)) +  -->
-<!--   geom_boxplot(na.rm = T) +  -->
-<!--   facet_wrap(~cluster) + -->
-<!--   theme(axis.text.x = element_text(angle = 45)) -->
-<!-- ``` -->
-
-### Recommended Lamnguage to Learn
-
-Here the big three; Python, R, SQL dominate the recommendations. These are the core data science programming lanuages. 
-
-```{r fig.width=8, fig.height=6}
-df_complete %>% ggplot(aes(x = Rec_lang, y = compensation_USD, fill = Rec_lang)) + 
-  geom_boxplot(na.rm = T) + 
-  facet_wrap(~cluster) +
-  theme(axis.text.x = element_text(angle = 45))
-```
-
-```{r}
-cluster.category.count.plot<-function(df_basic, df_cat, clusters){
-  df<-subset(df_cat, select = -c(None, Other))
-  df_names<-c(names(df))
-  df<-df_basic %>%
-    inner_join(df, by = "id") %>%
-    filter(country == "United States of America") %>%
-    mutate(cluster = as.factor(clusters)) %>%
-    select(cluster,df_names)
-  df<-dummy_cols(.data = df, select_columns = df_names,remove_first_dummy = T, remove_selected_columns = T)
-  df<-df[,1:(length(df_names))]
-  df_names<-names(df)
-  df<-df %>%
-   select(cluster, df_names) %>%
-   mutate_if(is.factor, as.integer) %>%
-   pivot_longer(-cluster, names_to = "category_type", values_to = "count") %>%
-   group_by(cluster, category_type) %>%
-   summarise(count = sum(count)) %>%
-  ggplot(aes(x = category_type, y = count, fill = category_type)) +
-  geom_col(na.rm = T) +
-  facet_wrap(~cluster) +
-  theme(axis.text.x = element_text(angle = 45))
-  return(df)
-}
-```
-
-
-## Primary IDE
-
-Here we see that, save for a few IDE preferences, most cluster of people use in some capacity a variety of IDEs. Or have used them at some point. 
-
-```{r fig.width=8, fig.height=6}
-cluster.category.count.plot(df_basic, df_ide, five_k$cluster)
-```
-
-## Primary Language
-
-Again, we see the big three are very popular across all the clusters with Bash in fourth place. 
-
-
-```{r fig.width=8, fig.height=6}
-cluster.category.count.plot(df_basic, df_lang, five_k$cluster)
-```
-
-## Big Data Cloud Services
-
-Here cluster one and four are both types of data scientists that use big data service at work and cluster is not. AWS Redshift, Databricks, and Google BigQuery seem to be the favorites - they are all structured data servers, which makes sense given the primacy of SQL. 
-
-```{r fig.width=8, fig.height=6}
-cluster.category.count.plot(df_basic, df_big_data, five_k$cluster)
-```
-
-## Cloud Machine Learning
-
-Again, clusters one and four use cloud based ML services. Interestingly, AWS Sagemaker is the clear favorite for those clusters. A good technology to learn. 
-
-```{r fig.width=8, fig.height=6}
-cluster.category.count.plot(df_basic, df_cloud_ml, five_k$cluster)
-```
-
-
-
-
-
-
-
-
-
-
-
-
-
+df_complete_cat will go into the kmeans algorthim for analysis. 
 
 
 
