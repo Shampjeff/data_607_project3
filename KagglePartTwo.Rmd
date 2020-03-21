@@ -24,7 +24,7 @@ conn <- dbConnect(odbc(),
                   Server = "spsangelclaudio.database.windows.net",
                   Database = "DataScienceValue",
                   UID = "spsadmin",
-                  PWD = "noneYA")
+                  PWD = "bKuNsh6bphei23c")
 ```
 
 ## Get View Object for Use
@@ -46,5 +46,11 @@ kaggle_data %>%
   ggplot() +
   geom_bar(aes(x = Salary),fill="lightblue") +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+## Analysis Using Genre Specific Tables
+
+```{r}
+(ex_result <- dbGetQuery(conn, 'SELECT top 10 ml_exp_years FROM [dbo].[df_ml_xp]'))
 ```
 
