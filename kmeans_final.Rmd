@@ -67,7 +67,7 @@ Running the algorthim 100 times and averaging the results.
 
 
 ```{r, warning=FALSE}
-run_kmean <- FALSE
+run_kmean <- TRUE
 if (run_kmean == TRUE){
 set.seed(9450)
 k_range<-2:30
@@ -110,7 +110,9 @@ Clusters 3 and 4 appear to be similar for these categories where as cluster one 
 ```{r fig.width=8, fig.height=6}
 df_complete %>% ggplot(aes(x = age, y = compensation_USD, fill = age)) +
   geom_boxplot(na.rm = T) + 
-  facet_wrap(~cluster)
+  facet_wrap(~cluster) +
+  labs(x = "Age", y = "Salary", title= "Distribution of Salary by Age") +
+  theme(axis.text.x = element_text(angle = 45, size=14))  
 ```
 
 ### Education and Compensation
@@ -129,6 +131,7 @@ df_complete %>%
              fill = education)) +
   geom_boxplot(na.rm = T) +
   facet_wrap(~cluster) +
+  labs(x = "Education", y = "Salary", title= "Distribution of Salary by Education Level") +
   theme(axis.text.x = element_text(angle = 45, size=14))
 ```
 
@@ -140,7 +143,8 @@ This is a nice separator for our field. Cluster one are people with a lot of exp
 df_complete %>% ggplot(aes(x = code_exp_years, y = compensation_USD, fill = code_exp_years)) + 
   geom_boxplot(na.rm = T) + 
   facet_wrap(~cluster) +
-  theme(axis.text.x = element_text(angle = 45))
+  labs(x = "Years Experience", y = "Salary", title= "Distribution of Salary by Code Experience") +
+  theme(axis.text.x = element_text(angle = 45, size=14))
 ```
 
 
@@ -220,7 +224,8 @@ Here we see that, save for a few IDE preferences, most clusters of people use in
 ```{r fig.width=8, fig.height=6}
 df_basic<-as.data.frame(tbl(conn, "df_basic"))
 df_ide<-as.data.frame(tbl(conn, "df_ide"))
-cluster.category.count.plot(df_basic, df_ide, five_k$cluster)
+cluster.category.count.plot(df_basic, df_ide, five_k$cluster) +
+    labs(x = "IDE", y = "Count", title= "Frequency of IDE Use")
 ```
 
 ### Primary Language
@@ -230,7 +235,9 @@ Here we see the big three; Python, R, SQL are very popular across all the cluste
 
 ```{r fig.width=8, fig.height=6}
 df_lang<-as.data.frame(tbl(conn, "df_lang"))
-cluster.category.count.plot(df_basic, df_lang, five_k$cluster)
+cluster.category.count.plot(df_basic, df_lang, five_k$cluster) + 
+    labs(x = "Languages", y = "Count", title= "Frequency of Language Use")
+
 ```
 
 ### Big Data Cloud Services
@@ -239,7 +246,8 @@ Here cluster one and four are both types of data scientists that use big data se
 
 ```{r fig.width=8, fig.height=6}
 df_big_data<-as.data.frame(tbl(conn, "df_big_data"))
-cluster.category.count.plot(df_basic, df_big_data, five_k$cluster)
+cluster.category.count.plot(df_basic, df_big_data, five_k$cluster) +
+    labs(x = "Big Data Product", y = "Count", title= "Frequency of Big Data Use")
 ```
 
 ### Cloud Machine Learning
@@ -248,7 +256,8 @@ Again, clusters one and four use cloud based ML services. Interestingly, AWS Sag
 
 ```{r fig.width=8, fig.height=6}
 df_cloud_ml<-as.data.frame(tbl(conn, "df_cloud_ml"))
-cluster.category.count.plot(df_basic, df_cloud_ml, five_k$cluster)
+cluster.category.count.plot(df_basic, df_cloud_ml, five_k$cluster)+
+    labs(x = "Cloud Product", y = "Count", title= "Frequency of Cloud Machine Learning Use")
 ```
 
 
@@ -258,13 +267,25 @@ Here we see that having solid skills in the traditional SQL database technologie
 
 ```{r fig.width=8, fig.height=6}
 df_db<-as.data.frame(tbl(conn, "df_db"))
-cluster.category.count.plot(df_basic, df_db, five_k$cluster)
+cluster.category.count.plot(df_basic, df_db, five_k$cluster) +
+    labs(x = "Database Type", y = "Count", title= "Frequency of Relational Database Use")
+
 ```
 
 
+# Most Valuable Skills
 
+Let's return the business proposition -  what types of skills make up a good data scientist and good data science teams?
 
+Our clusters give us nice insight in this so let's summarize the cluster types as best we can. Cluster two are novices and well not be covered. 
 
+* **Cluster one:** These are people with a lot experience in the field. They can or have used many types of software including the popular languages and traditional sofeware engineering languages. They are early users of cloud technologies and big data systems. These folks can be older or are managers of teams or divisions at this point. 
+
+* **Cluster three:** These are folks who work in a traditional sense of data science and analysis. They use the standard cannon of the technologies; R, Python, local SQL platforms, and text editors. They like R and seem to not like Jupyter and do not have much experience with cloud or big data systems. 
+
+* **Cluster four:** These folks are similar to cluster three, but with a few key differences. They folks like to use RStudio, but not the R language. They like Jupyter and are ramping up their skills with cloud products and big data systems. These are mid-career people in transistion as they are younger than cluster one but a bit older than cluster three. 
+
+Cloud products and big data systems are highly in-demand as the higher paid people in clusters one and four both have skill sets in these areas. Those clusters also have deeper experience in the field on average. They are also well versed in the traditional technologies and languages for data analysis. I would want them on my team. I would also want a few people, perhaps working under a cluster one or four person, to work with smaller datasets for manipulation, tidying, visualizing, and statisical work. 
 
 
 
