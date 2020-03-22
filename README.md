@@ -6,4 +6,4 @@ Use data to answer the question, “Which are the most valued data science skill
 
 ### SQL database access
 We have purposely hidden password and access to parts of our database. 
-You may need to supply our IP address for access and/or ask for the password
+You may need to supply your IP address for access and/or ask for the password
