@@ -1,0 +1,327 @@
+---
+title: "Kaggle Survey Cleaning - Project 3"
+author: "GROUP FORGOT OUR NAME"
+date: "`r Sys.Date()`"
+output:
+ # prettydoc::html_pretty:
+ #   theme: architect
+ #    highlight: vignette
+---
+
+# Kaggle DS survery 2019 - PART ONE
+
+This file is load the Kaggle Data Science Survey for 2019, cleans it, divides the questions into subsets, and writes the subsets to our project SQL server. 
+
+# R LIBRARY SETUP
+
+```{r setup, message=F, warning=F}
+library(tidyr)
+library(dplyr)
+library(dbplyr)
+library(ggplot2)
+library(RCurl)
+library(RMySQL)
+library(stringr)
+library(odbc)
+library(DBI)
+library(magrittr)
+```
+
+# IMPORT DATA TO R
+
+Below is the bulk data file. We don't know to drag around all the data all the time so I'm going to split this dataframe up into subsets and clean them up for easy tidying downstream. 
+
+```{r}
+file <- "./Data/multiple_choice_responses.csv"
+
+df <- read.csv(file = file, sep = ",", stringsAsFactors = F, na.strings = T) %>% 
+              mutate_if(is.character, list(~na_if(.,""))) 
+```
+
+# DATA WRANGLING IN R
+
+The first table we want is the basic information; age, country, education level, company size, salary, experience level, etc. 
+
+```{r}
+df_basic<- df %>%
+  select(Q1:Q2,Q3:Q4,Q6:Q8, Q10,Q11,Q15) %>%
+  rename(age = Q1,         # custom name for columns
+         gender = Q2, 
+         country = Q3,
+         education = Q4,
+         company_size = Q6,
+         ds_team_size = Q7,
+         company_use_ml = Q8,
+         compensation_USD = Q10,
+         spend_ml_cloud_work_USD = Q11,
+         code_exp_years = Q15) %>%
+  slice(2:(dim(df)[1])) %>%
+  mutate(                  # Following mutatations to clean formatting
+    country = str_replace_all(country,
+                "United Kingdom of Great Britain and Northern Ireland",
+                "United Kingdom")) %>%
+  mutate(company_size = str_remove_all(company_size, "employees")) %>%
+  mutate(education = str_remove_all(education, "degree")) %>%
+  mutate(education = str_remove_all(education, "[:punct:]")) %>%
+  mutate(compensation_USD = str_remove_all(compensation_USD, "[$]")) %>%
+  mutate(spend_ml_cloud_work_USD = str_remove_all(spend_ml_cloud_work_USD,"[$]")) %>%
+  mutate(spend_ml_cloud_work_USD = str_remove_all(spend_ml_cloud_work_USD,"\\(USD\\)")) %>%
+  mutate(code_exp_years= str_remove_all(code_exp_years, "years")) %>%
+  mutate(code_exp_years= str_replace_all(code_exp_years, "I have never written code", "None"))
+```
+
+A lot of columns end with a technology or choice so i'll rename the columns based the row selection choice. Also cleaning the column names to standard format. 
+
+```{r}
+rename.columns<- function(df){
+items<- rep(NA, dim(df)[2])
+for (i in 1:ncol(df)){
+  items[i]<- str_extract(df[1,i], "[-].*")
+  items[i]<- str_remove(items[i], "- Selected Choice -  |- Selected Choice -")
+  items[i]<- str_remove(items[i], "\\(.*\\)")
+  items[i]<- str_replace(items[i], "[:punct:]\\s", "")
+  items[i]<- str_remove_all(items[i], "\\s$|^\\s")
+  items[i]<- str_replace_all(items[i], "\\s", "_")
+  items[i]<- str_remove(items[i], "_$")
+  names(df)[names(df) == names(df[i])]<-items[i]
+}
+df<- df %>% slice(2:dim(df)[1])
+return(df)
+}
+```
+
+Rip throught the subsets for cleaning.
+
+```{r}
+# Primary Tool for DA at school/work
+df_prime_tool<- df %>% 
+  select(Q14 )%>%
+  slice(2:dim(df)[1]) %>%
+  rename(primary_analysis_tool = Q14)
+# ML year EXP
+df_ml_xp<- df %>% select(Q23) %>%
+  slice(2:dim(df)[1]) %>%
+  rename(ml_exp_years = Q23) %>%
+  mutate(ml_exp_years = str_remove_all(ml_exp_years, "years"))
+# language to learn first?
+df_lang_rec<- df%>% 
+  select(Q19) %>%
+  slice(1:dim(df)[1]) %>%
+  rename(rec_lang = Q19)
+#media sources for DS
+df_media<- df %>% select(Q12_Part_1:Q12_Part_12) %>%
+  slice(2:dim(df)[1]) %>%
+  rename(twiter = Q12_Part_1,
+         hacker_news = Q12_Part_2,
+         reddit = Q12_Part_3,
+         kaggle = Q12_Part_4,
+         course_forums = Q12_Part_5,
+         you_tube = Q12_Part_6,
+         podcast = Q12_Part_7,
+         blogs = Q12_Part_8,
+         journals = Q12_Part_9,
+         slack_communities = Q12_Part_10,
+         none = Q12_Part_11,
+         other = Q12_Part_12)
+# DS course work including University
+df_online_ed<- df %>% 
+  select(Q13_Part_1:Q13_Part_12) 
+df_online_ed<- rename.columns(df_online_ed) 
+# IDE
+df_ide <- df %>% 
+  select(Q16_Part_1:Q16_Part_12) 
+df_ide<-rename.columns(df_ide)
+# language
+df_lang<- df %>%
+  select(Q18_Part_1:Q18_Part_12) 
+df_lang<- rename.columns(df_lang)
+# data viz
+df_viz <- df %>% 
+  select(Q20_Part_1:Q20_Part_12) 
+df_viz<- rename.columns(df_viz) 
+# ML algo used regualrly
+df_ml_algo<- df %>%select(Q24_Part_1:Q24_Part_12) 
+df_ml_algo<-rename.columns(df_ml_algo)
+# ML Tools (e.g. AutoML)
+df_ml_tool<- df %>% select(Q25_Part_1:Q25_Part_8) 
+df_ml_tool<- rename.columns(df_ml_tool) 
+# CV tools
+df_cv<- df %>% select(Q26_Part_1:Q26_Part_7)
+df_cv<-rename.columns(df_cv)
+# NLP tools
+df_nlp<- df %>% select(Q27_Part_1:Q27_Part_6)
+df_nlp<- rename.columns(df_nlp)
+# Cloud platform
+df_cloud<- df %>% select(Q29_Part_1:Q29_Part_12)
+df_cloud<- rename.columns(df_cloud)
+# cloud products
+df_cloud_prod<- df %>% select(Q30_Part_1:Q30_Part_12)
+df_cloud_prod<- rename.columns(df_cloud_prod)
+# big data platform
+df_big_data<- df %>%select(Q31_Part_1:Q31_Part_12)
+df_big_data<- rename.columns(df_big_data)
+# cloud ML (e.g. Sagemaker)
+df_cloud_ml<- df %>% select(Q32_Part_1:Q32_Part_12)
+df_cloud_ml<- rename.columns(df_cloud_ml)
+# relational DB
+df_db<- df %>% select(Q34_Part_1:Q34_Part_12)
+df_db<- rename.columns(df_db)
+```
+
+## Managing Azure SQL Server Database
+
+Open the connection manager to Azure SQL Server Database:
+
+```{r db-authenticate, echo=T, message=F, Warning=F, eval=F}
+conn <- dbConnect(odbc(),
+                  Driver = "SQL Server",
+                  Server = "spsangelclaudio.database.windows.net",
+                  Database = "DataScienceValue",
+                  UID = "spsadmin",
+                  PWD = "noneYa")
+```
+
+## Prep the Data to Write to the Cloud
+
+After some initial data wrangling with R, we want to normalize and map the data correctly for importing to our Azure SQL Server.
+
+1. Remove any special characters from the initial wrangling (bear in mind yes **gsub** was an alternative, but for brevity and readability used **str_replace**).
+2. Create reference tables from the factors.
+3. Finally Update the transactional entity with foreign key references after each reference data frame was created.
+
+
+```{r db-insert}
+df_basic %<>% mutate(education = str_replace(education,"â€™",""))
+
+age_ref <- distinct(df_basic, age) %>% mutate(ID = 1:nrow(.)) %>% 
+  rename(Description = age)
+
+df_basic %<>% inner_join(age_ref, by = c("age" = "Description")) %>% 
+  select(-c(age)) %>% rename(Age = ID) 
+
+country_ref <- distinct(df_basic, country) %>% mutate(ID = 1:nrow(.)) %>% 
+  rename(Description = country)
+
+df_basic %<>% inner_join(country_ref, by = c("country" = "Description")) %>% 
+  select(-c(country)) %>% rename(Country = ID) 
+
+education_ref <- distinct(df_basic, education) %>% filter(!is.na(.)) %>%
+  mutate(ID = 1:nrow(.))  %>%  rename(Description = education)
+
+df_basic %<>% left_join(education_ref, by = c("education" = "Description")) %>% 
+  select(-c(education)) %>% rename(Education = ID)
+
+company_size_ref <- distinct(df_basic, company_size) %>% filter(!is.na(.)) %>% 
+  mutate(ID = 1:nrow(.)) %>% rename(Description = company_size)
+
+df_basic %<>% left_join(company_size_ref, by = c("company_size" = "Description")) %>% 
+  select(-c(company_size)) %>% rename(CompanySize = ID)
+
+ds_team_size_ref <- distinct(df_basic, ds_team_size) %>% filter(!is.na(.)) %>% 
+  mutate(ID = 1:nrow(.)) %>% rename(Description = ds_team_size)
+
+df_basic %<>% left_join(ds_team_size_ref, by = c("ds_team_size" = "Description")) %>% 
+  select(-c(ds_team_size)) %>% rename(DataScienceTeamSize = ID)
+
+company_use_ml_ref <- distinct(df_basic, company_use_ml) %>% filter(!is.na(.)) %>% 
+  mutate(ID = 1:nrow(.)) %>% rename(Description = company_use_ml)
+
+df_basic %<>% left_join(company_use_ml_ref, by = c("company_use_ml" = "Description")) %>% 
+  select(-c(company_use_ml)) %>% rename(CompanyUseMachLearn = ID)
+
+compensation_USD_ref <- distinct(df_basic, compensation_USD) %>% filter(!is.na(.)) %>% 
+  mutate(ID = 1:nrow(.)) %>% rename(Description = compensation_USD)
+
+df_basic %<>% left_join(compensation_USD_ref, by = c("compensation_USD" = "Description")) %>% 
+  select(-c(compensation_USD)) %>% rename(Salary = ID)
+
+gender_ref <- distinct(df_basic, gender) %>% filter(!is.na(.)) %>% 
+  mutate(ID = 1:nrow(.)) %>% rename(Description = gender)
+
+df_basic %<>% left_join(gender_ref, by = c("gender" = "Description")) %>% 
+  select(-c(gender)) %>% rename(Gender = ID)
+
+code_exp_ref <- distinct(df_basic, code_exp_years) %>% filter(!is.na(.)) %>% 
+  mutate(ID = 1:nrow(.)) %>% rename(Description = code_exp_years)
+
+df_basic %<>% left_join(code_exp_ref, by = c("code_exp_years" = "Description")) %>% 
+  select(-c(code_exp_years)) %>% rename(YearsOfCodeExperience = ID)
+
+cloud_work_ref <- distinct(df_basic, spend_ml_cloud_work_USD) %>% filter(!is.na(.)) %>% 
+  mutate(ID = 1:nrow(.)) %>% rename(Description = spend_ml_cloud_work_USD)
+
+df_basic %<>% left_join(cloud_work_ref, by = c("spend_ml_cloud_work_USD" = "Description")) %>% 
+  select(-c(spend_ml_cloud_work_USD)) %>% rename(MachLearnCloudWorkExpense = ID)
+
+head(df_basic)
+
+head(cloud_work_ref)
+```
+
+## Insert Data into Database
+
+We used schemas in our backend because in real world projects that have more than one team using a database, schemas are used to partition authorization and identify what objects belong to what resources.
+
+1. For schemas we must use the relatively new function **Id** from **DBI** Package
+2. Next we use **dbWriteTable** function, and send in the dataframes we created earlier.
+3. To ensure the correct schema is used, in the name argument we send the **Id** objects we created instead of a simple string that would normally just identify a root level table.
+4. Finally insert the participant data (luckily **DBI** recently upgraded to handle batch processing)
+
+```{r data-inserts, eval = F}
+kaggle_ref <- Id(schema = "Kaggle", table = "Age")
+dbWriteTable(conn, name = kaggle_ref, value = age_ref, append = T)
+
+kaggle_ref <- Id(schema = "Kaggle", table = "Country")
+dbWriteTable(conn, name = kaggle_ref, value = country_ref, append = T)
+
+kaggle_ref <- Id(schema = "Kaggle", table = "Education")
+dbWriteTable(conn, name = kaggle_ref, value = education_ref, append = T)
+
+kaggle_ref <- Id(schema = "Kaggle", table = "DataScienceTeamSize")
+dbWriteTable(conn, name = kaggle_ref, value = ds_team_size_ref, append = T)
+
+kaggle_ref <- Id(schema = "Kaggle", table = "CompanyUseMachLearn")
+dbWriteTable(conn, name = kaggle_ref, value = company_use_ml_ref, append = T)
+
+kaggle_ref <- Id(schema = "Kaggle", table = "Salary")
+dbWriteTable(conn, name = kaggle_ref, value = compensation_USD_ref, append = T)
+
+kaggle_ref <- Id(schema = "Kaggle", table = "Gender")
+dbWriteTable(conn, name = kaggle_ref, value = gender_ref, append = T)
+
+kaggle_ref <- Id(schema = "Kaggle", table = "YearsOfCodeExperience")
+dbWriteTable(conn, name = kaggle_ref, value = code_exp_ref, append = T)
+
+kaggle_ref <- Id(schema = "Kaggle", table = "MachLearnCloudWorkExpense")
+dbWriteTable(conn, name = kaggle_ref, value = cloud_work_ref, append = T)
+
+kaggle_ref <- Id(schema = "Kaggle", table = "Participant")
+dbWriteTable(conn, name = kaggle_ref, value = df_basic, append = T)
+```
+
+## Create Artifact Tables of the Case Surveys
+
+Finally our last task is to create artifact tables of genre specific surveys that were extracted from the wide table. Using these specific files may help us draw analysis from different features to aid in discovery of valuable information.
+
+```{r artifact-writes, eval=F}
+dbWriteTable(conn, name = "df_prime_tool",value = df_prime_tool)
+dbWriteTable(conn, name = "df_ml_xp",value = df_ml_xp)
+dbWriteTable(conn, name = "df_lang_rec",value = df_lang_rec)
+dbWriteTable(conn, name = "df_media",value = df_media)
+dbWriteTable(conn, name = "df_online_ed",value = df_online_ed)
+dbWriteTable(conn, name = "df_ide",value = df_ide)
+dbWriteTable(conn, name = "df_lang",value = df_lang)
+dbWriteTable(conn, name = "df_viz",value = df_viz)
+dbWriteTable(conn, name = "df_ml_algo",value = df_ml_algo)
+dbWriteTable(conn, name = "df_ml_tool",value = df_ml_tool)
+dbWriteTable(conn, name = "df_cv",value = df_cv)
+dbWriteTable(conn, name = "df_nlp",value = df_nlp)
+dbWriteTable(conn, name = "df_cloud",value = df_cloud)
+dbWriteTable(conn, name = "df_cloud_prod",value = df_cloud_prod)
+dbWriteTable(conn, name = "df_big_data",value = df_big_data)
+dbWriteTable(conn, name = "df_cloud_ml",value = df_cloud_ml)
+dbWriteTable(conn, name = "df_db",value = df_db)
+```
+
+
+
