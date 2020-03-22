@@ -1,0 +1,300 @@
+---
+title: "Kaggle Part 2"
+author: "Sam Bellows"
+date: "3/19/2020"
+output: pdf_document
+---
+
+# Kaggle DS survery 2019 - PART TWO
+
+## Collaboration and Team Structure
+
+We began by discussing the data sources we wanted to use for the project and the different possible roles/interests we all had. Once we decided to use the Kaggle data and scrape web data, we split the group into smaller teams: Angel was in charge of the database, Sam and Jeff were in charge of the Kaggle data, and Layla and Neil were in charge of web scraping. We continued to hold voice meetings approximately twice a week in our discord server to update each other on our progress and make sure we maintained a unified goal for the project. All of our work was shared via this github repo https://github.com/Shampjeff/data_607_project3 graciously hosted by Jeff (big shoutout to Jeff for helping those of us with less experience in git!). 
+
+## R LIBRARY SETUP
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(odbc)
+library(DBI)
+library(ggmosaic)
+```
+
+## Open Connection to Database
+
+We do not show the code to connect to the database to keep the database password secure.
+
+```{r db-authenticate, eval=T, echo=T, message=FALSE, Warning=F, include = F}
+conn <- dbConnect(odbc(),
+                  Driver = "SQL Server",
+                  Server = "spsangelclaudio.database.windows.net",
+                  Database = "DataScienceValue",
+                  UID = "spsadmin",
+                  PWD = "fakePW")
+```
+
+## Get View Object for Use
+
+```{r}
+#kaggle_data <- tbl(conn, "uvwParticipantData")
+kaggle_data <- dbGetQuery(conn, 'Select * from uvwParticipantData')
+```
+
+## Limitations of Kaggle Data
+
+The data from kaggle has several limitations. Firstly, the data was survey based, which means it suffers from several biases. It only samples a subspace of data scientists, as the respondents were found "primarily through Kaggle channels". It also suffers from self-selection bias as not everyone who was sent the survey responded. In addition: not every surveyee was shown every question, and if a person answered "Other" to a question it is impossible to match their answer with the rest of their answers due to the format of the data.
+
+One of the consequences of said limitations is that the data has a large amount of NA values, likely due to respondents either choosing not to answer or not being shown certain questions. Another problem is the lack of precision: since each question is multiple choice, continuous variables like salary or years of experience lack precision as they have been chunked into discrete bins.
+
+## Check for outliers
+
+There are no possible numeric outliers as users did not input numbers by hand but instead chose a bin provided by the survey writers.
+
+## Cleaning Salary data
+
+I will clean salary data to make it numeric, allowing it to be easily plotted and analyzed.
+
+```{r}
+
+##This function takes numeric bins and returns the mean of the
+##bin, allowing us to more easily order/graph them.
+clean_numeric_bins <- function(series){
+  series <- str_remove_all(series, '[,><+/s]') %>%  str_split('-')
+  series <- sapply(series, as.integer) %>% sapply(mean) %>% sapply(round)
+  series
+}
+
+
+
+df_basic <- kaggle_data
+df_basic$Salary <- clean_numeric_bins(df_basic$Salary)
+```
+
+## Do age and gender affect compensation?
+
+### Univariate Plots
+
+First we examine the distributions of age, gender, and compensation on their own.
+
+```{r}
+df_basic %>% ggplot(aes(x = Age, fill = Gender)) +
+  geom_histogram(alpha = 0.5, stat = 'count', position = 'identity')
+
+mean(df_basic$Gender == 'Male')
+```
+
+The first thing we notice is that the sample is extremely skewed, made up of almost predominantly males. In fact, almost 84% of those surveyed are male. The most common age group is 25-29, and it appears the median age is likely somewhere around 30.
+
+```{r}
+df_basic %>% ggplot(aes(factor(Salary))) +
+  geom_bar(stat = 'count') +
+  theme(axis.text.x = element_text(angle = 90))
+```
+
+We see that the mode salary is extremely low, 500$. This is unexpected, and likely related to people filling out the survey who are not yet working as data scientists still labeling themself as a data scientist.
+
+### Bivariate Plots
+
+Now we will examine how age and compensation and gender and compensation vary together.
+
+I plot these using mosaic plots, where the area of a rectangle represents the proportion of people falling into both groups.
+
+```{r}
+df_basic %>%
+  ggplot() + 
+  geom_mosaic(aes(x = product(Age, Salary), fill = Age),
+              na.rm = TRUE) + xlab('Salary') + ylab('Age') +
+  ggtitle('Salary by Age Group') +
+  theme(axis.text = element_text(size = 6), axis.text.x = element_text(angle = 90))
+
+df_basic %>%
+  ggplot() + 
+  geom_mosaic(aes(x = product(Gender, Salary),
+                  fill = Gender), na.rm = TRUE) +
+  xlab('Salary') + ylab('Gender') +
+  ggtitle('Salary by Gender') +
+  theme(axis.text = element_text(size = 6), axis.text.x = element_text(angle = 90))
+
+df_basic %>% ggplot(aes(x = Gender, y = Salary,
+                        fill = Gender)) + geom_boxplot() +
+  theme(axis.text.x = element_text(angle = 90))
+
+df_basic %>% ggplot(aes(x = Age, y = Salary, fill = Age)) + geom_boxplot()
+```
+
+There is a clear distinction between male and female salaries, and a clear upward trend between age and salary.
+
+
+## Education, Country, and Experience vs. Salary
+
+### Univariate Plots
+
+First we get a feeling for each variable on its own via a bar plot. I am going to apply the same approach to years of experience to make it more useable in a plot.
+
+```{r, warning = FALSE}
+df_basic$Education <- df_basic$Education %>%
+  str_replace_all('Some collegeuniversity study without earning a bachelors', 'Some college') %>%
+  str_replace_all('No formal education past high school', 'High school')
+
+df_basic %>% ggplot(aes(x = forcats::fct_infreq(Education))) +
+  geom_bar(stat = 'count') +
+  theme(axis.text.x = element_text(angle = 90)) +
+  xlab('Education')
+
+df_basic %>% ggplot(aes(x = forcats::fct_infreq(Country))) +
+  geom_bar(stat = 'count') +
+  theme(axis.text.x = element_text(angle = 90, size = 7)) +
+  xlab('Country')
+
+df_basic$codeExperience<- clean_numeric_bins(df_basic$YearsOfCodeExperience)
+df_basic %>% ggplot(aes(x = factor(codeExperience))) +
+  geom_bar(stat = 'count') +
+  theme(axis.text.x = element_text(angle = 90)) +
+  xlab('Years of Coding Experience')
+```
+
+We see that the most common level of education is a master's degree, the most common country is the United States, although India is extremely close, and the most common level of coding experience is approximately 4 years.
+
+### Bivariate Plots
+
+```{r, warning = FALSE}
+df_basic %>%
+  ggplot() + 
+  geom_mosaic(aes(x = product(Education, Salary),
+                  fill = Education), na.rm = TRUE) +
+  xlab('Salary') + ylab('Education') +
+  ggtitle('Salary by Education') +
+  theme(axis.text = element_text(size = 6), axis.text.x = element_text(angle = 90))
+
+india_us <- df_basic %>% filter(Country == 'United States of America'|Country == 'India')
+
+india_us %>%
+  ggplot() + 
+  geom_mosaic(aes(x = product(Country, Salary),
+                  fill = Country), na.rm = TRUE) +
+  xlab('Salary') + ylab('Country') +
+  ggtitle('Salary by Country') +
+  theme(axis.text = element_text(size = 6), axis.text.x = element_text(angle = 90))
+
+df_basic %>%
+  ggplot() + 
+  geom_mosaic(aes(x = product(factor(codeExperience), Salary),
+                  fill = factor(codeExperience)), 
+              na.rm = TRUE) + xlab('Salary') +
+  ylab('Coding Experience') +
+  ggtitle('Salary by Coding Experience') +
+  theme(axis.text = element_text(size = 6), axis.text.x = element_text(angle = 90))
+```
+
+We find mostly what we would expect. Compensation goes up with education, is HIGHLY affected by country of origin, as US compensation greatly outpaces India's, and goes up with years of coding experience.
+
+```{r, warning = FALSE}
+df_basic %>% ggplot(aes(Education, Salary, 
+                        fill = Education)) + geom_boxplot() +
+  theme(axis.text.x = element_text(angle = 90), legend.position = 'None')
+
+india_us %>% ggplot(aes(Country, Salary, fill = Country)) +
+  geom_boxplot() + theme(legend.position = 'None')
+
+df_basic %>% ggplot(aes(factor(codeExperience), Salary, 
+                        fill = factor(codeExperience))) +
+  geom_boxplot() + xlab('Years of Coding Experience') +
+  theme(legend.position = 'None')
+```
+
+## Beyond the basic dataframe
+
+We have lots of information broken down into many sub dataframes. I will attempt to access this information via a function rather than doing each dataframe individually.
+
+```{r}
+rm(india_us)
+
+df_list <- list('df_ide', 'df_lang', 'df_viz', 'df_ml_algo', 'df_ml_tool', 'df_cv', 
+      'df_nlp', 'df_cloud', 'df_cloud_prod', 'df_big_data', 'df_cloud_ml', 'df_db')
+```
+
+```{r, warning = FALSE}
+### Function to summarize the smaller dataframes into medians and counts
+summarize_df <- function(df_name){
+  query <- paste('Select * from ', df_name, collapse = '')
+  func_df <- dbGetQuery(conn, query)
+  names(func_df) <- names(func_df) %>% 
+    str_remove_all("[/,-]") %>% str_replace_all('\\+', 'plus')
+  titles <- c()
+  med <- c()
+  counts <- c()
+  mega_df <- cbind(df_basic, func_df)
+  
+  colNames <- names(func_df)
+  
+  ## iterate through the columns of the dataframe
+  ## each column is one skill
+  for (j in colNames){
+    ## Calculate the median and count for each column
+    meds <- mega_df %>% group_by_(j) %>% 
+      summarize(med = median(Salary, na.rm = T), count = n())
+    titles <- append(titles, meds[[1]])
+    med <- append(med, meds[[2]])
+    counts <- append(counts, meds[[3]])
+  }
+  ##Create a dataframe of all skill names, medians, counts
+  return(data.frame('skill' = titles, 'medians' = med, 'counts' = counts))
+}
+```
+
+```{r, warning = FALSE}
+
+##Plot side dataframes that are in slightly different format
+
+df_prime_tool <- dbGetQuery(conn, 'Select * from df_prime_tool')
+cbind(df_basic, df_prime_tool) %>% 
+  ggplot(aes(x = str_wrap(primary_analysis_tool, 12), 
+             y = Salary, fill = primary_analysis_tool)) +
+  geom_boxplot() + theme(axis.text.x = element_text(size = 6),
+                      legend.text = element_text(size = 6)) + 
+  xlab('Primary Analysis Tool') + 
+  theme(legend.position = 'none')
+
+df_ml_xp <- dbGetQuery(conn, 'Select * from df_ml_xp')
+df_ml_xp$ml_exp_years <- clean_numeric_bins(df_ml_xp$ml_exp_years)
+cbind(df_basic, df_ml_xp) %>% 
+  ggplot(aes(x = factor(ml_exp_years), y = Salary, 
+             fill = factor(ml_exp_years))) + 
+  geom_boxplot() + xlab('Years of ML Experience') +
+  theme(legend.position = 'None')
+
+##Plot other side dataframes using function created.
+for (i in df_list){
+  winnerdf <- summarize_df(i)
+  winnerdf <- winnerdf %>% 
+    filter(!(skill %in% c('None', 'Other'))) %>%
+    filter(!(is.na(skill)))
+  
+  plots <- winnerdf %>% ggplot(aes(counts, medians, 
+                        color = str_wrap(skill, 15))) +
+    geom_point() + theme(legend.text = element_text(size = 5),
+                         legend.title = element_blank()) +
+    xlab('Popularity (counts)') +ylab('Median Salary')
+  print(plots)
+}
+
+```
+
+## Summarizing Results
+
+Based on the above visualizations, we can start to draw conclusions about what skills are highly valued by employers in the data science market. Please note that these conclusions are drawn based on self-reported salaries and would need to be verified with better data.
+
+The number one skill appears to be... living in the United States and not living in India! Some other skills along these lines appear to be being older and being male. (This is of course tongue in cheek: I do not espouse this view as correct, I merely show what the data say.)
+
+In terms of ACTUAL skills valued by employers, some things that jump out from the visualizations.
+
+- Having a masters/doctoral degree
+- Many years of coding experience
+- Cloud based data software such as AWS/Azure
+- Advanced statistical software such as SPSS or SAS
+- R/Bash have the highest salary, but Python most popular
+- Seaborn and Altair
+- Neural Networks and Gradient Boosting
+- AWS is both popular and highly valued
+- SQL is a valuable skill
